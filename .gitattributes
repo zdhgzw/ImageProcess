@@ -1,0 +1,12 @@
+# 自动检测文本文件并进行规范化
+* text=auto
+
+# 源代码文件使用LF
+*.cpp text eol=lf
+*.h text eol=lf
+*.hpp text eol=lf
+CMakeLists.txt text eol=lf
+
+# Windows特定文件使用CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf

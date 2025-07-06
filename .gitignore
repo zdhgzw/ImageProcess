@@ -1,0 +1,53 @@
+# 构建目录
+build/
+bin/
+lib/
+
+# Visual Studio Code
+.vscode/
+.vs
+# CLion
+.idea/
+cmake-build-*/
+
+# 编译生成的文件
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+
+# CMake生成的文件
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+
+# 输出文件
+output/
+*.jpg
+*.png
+*.bmp
+*.tiff
+*.tif
+
+# 但保留示例目录中的README
+!examples/README.md
+!examples/test_all.bat
+
+# 临时文件
+*.tmp
+*.temp
+*.log
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 备份文件
+*.bak
+*.backup
+*~
