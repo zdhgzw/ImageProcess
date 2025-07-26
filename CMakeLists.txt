@@ -87,6 +87,7 @@ set(ALGORITHMS
     edge_detector
     image_blur
     particle_analysis
+    particle_segment
 )
 
 # 为每个算法创建可执行文件

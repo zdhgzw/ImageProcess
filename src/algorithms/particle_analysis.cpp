@@ -95,7 +95,7 @@ double getMicronPerPixel(const cv::Mat &image, double scale_bar_real_length_um, 
 
 int main() {
     // Load the image
-    cv::Mat src = cv::imread("../examplessample_images/particle.jpg");
+    cv::Mat src = cv::imread("../images/particle.jpg");
     if (src.empty()) {
         std::cout << "Error: Could not load image!" << std::endl;
         return -1;
@@ -190,12 +190,12 @@ int main() {
 
                 if (max_defect_depth_px > 0) {
                     // Visualization: Add convex hull baseline
-                    cv::line(final_result_image, start_pt, end_pt, cv::Scalar(255, 0, 255), 1);
+                    cv::line(final_result_image, start_pt, end_pt, cv::Scalar(255, 0, 255), 2);
                     double depth_in_um = max_defect_depth_px * um_per_pixel;
                     printf("      └─ Max Defect Depth: %.2f pixels (%.2f um)\n", max_defect_depth_px, depth_in_um);
 
                     cv::Point hull_midpoint = cv::Point((start_pt.x + end_pt.x) / 2, (start_pt.y + end_pt.y) / 2);
-                    cv::arrowedLine(final_result_image, hull_midpoint, farthest_pt, cv::Scalar(255, 0, 255), 1);
+                    cv::arrowedLine(final_result_image, hull_midpoint, farthest_pt, cv::Scalar(255, 0, 255), 2);
 
                     std::stringstream ss;
                     if (calibration_successful) {
@@ -213,7 +213,7 @@ int main() {
                        cv::Point(centroid.x - 15, centroid.y - 15), 
                        cv::FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(0, 0, 255), 1);
             cv::drawContours(final_result_image, std::vector<std::vector<cv::Point>>{main_contour}, 
-                           -1, cv::Scalar(0, 0, 255), 1);
+                           -1, cv::Scalar(0, 0, 255), 2);
         } else {
             // Mark normal particle
             cv::putText(final_result_image, std::to_string(display_id_counter), 
