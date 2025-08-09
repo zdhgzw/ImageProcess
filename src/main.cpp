@@ -7,10 +7,10 @@ int main() {
         app.initialize();
         app.run();
     } catch (const std::exception& e) {
-        std::cerr << "程序运行错误: " << e.what() << std::endl;
+        std::cerr << "Application error: " << e.what() << std::endl;
         return -1;
     } catch (...) {
-        std::cerr << "未知错误" << std::endl;
+        std::cerr << "Unknown error" << std::endl;
         return -1;
     }
     

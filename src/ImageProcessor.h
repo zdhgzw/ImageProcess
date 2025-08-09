@@ -84,6 +84,8 @@ public:
     bool hasImage() const;
     cv::Size getImageSize() const;
     void updateDisplayImage();
+    void setCurrentImage(const cv::Mat& image);
+    void applyPreProcessedImage(const cv::Mat& processedImage);
     
 private:
     // 内部辅助函数

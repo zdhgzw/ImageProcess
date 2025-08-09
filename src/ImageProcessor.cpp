@@ -174,7 +174,11 @@ cv::Size ImageProcessor::getImageSize() const {
 
 void ImageProcessor::updateDisplayImage() {
     if (!currentImage.empty()) {
+        std::cout << "DEBUG: updateDisplayImage - currentImage size: " << currentImage.cols << "x" << currentImage.rows << std::endl;
         displayImage = currentImage.clone();
+        std::cout << "DEBUG: displayImage updated to size: " << displayImage.cols << "x" << displayImage.rows << std::endl;
+    } else {
+        std::cout << "DEBUG: updateDisplayImage - currentImage is empty!" << std::endl;
     }
 }
 
@@ -217,5 +221,40 @@ cv::Mat ImageProcessor::performKMeans(const cv::Mat& image, int k) {
 void ImageProcessor::ensureImageLoaded() const {
     if (!hasImage()) {
         throw std::runtime_error("没有加载图像");
+    }
+}
+
+void ImageProcessor::setCurrentImage(const cv::Mat& image) {
+    if (!image.empty()) {
+        std::cout << "DEBUG: setCurrentImage called with image size: " << image.cols << "x" << image.rows << std::endl;
+        currentImage = image.clone();
+        std::cout << "DEBUG: currentImage updated, calling updateDisplayImage()" << std::endl;
+        updateDisplayImage();
+        std::cout << "DEBUG: updateDisplayImage() completed" << std::endl;
+    } else {
+        std::cout << "DEBUG: setCurrentImage called with empty image!" << std::endl;
+    }
+}
+
+void ImageProcessor::applyPreProcessedImage(const cv::Mat& processedImage) {
+    if (!processedImage.empty()) {
+        std::cout << "DEBUG: applyPreProcessedImage called with image size: " << processedImage.cols << "x" << processedImage.rows << std::endl;
+
+        // 确保图像数据类型正确
+        cv::Mat correctedImage;
+        if (processedImage.type() != currentImage.type()) {
+            processedImage.convertTo(correctedImage, currentImage.type());
+            std::cout << "DEBUG: Image type corrected from " << processedImage.type() << " to " << currentImage.type() << std::endl;
+        } else {
+            correctedImage = processedImage.clone();
+        }
+
+        // 直接替换当前图像
+        currentImage = correctedImage;
+        std::cout << "DEBUG: currentImage directly replaced, calling updateDisplayImage()" << std::endl;
+        updateDisplayImage();
+        std::cout << "DEBUG: applyPreProcessedImage completed" << std::endl;
+    } else {
+        std::cout << "DEBUG: applyPreProcessedImage called with empty image!" << std::endl;
     }
 }
