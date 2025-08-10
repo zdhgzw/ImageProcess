@@ -86,6 +86,18 @@ public:
     void updateDisplayImage();
     void setCurrentImage(const cv::Mat& image);
     void applyPreProcessedImage(const cv::Mat& processedImage);
+
+    // 预处理功能 - 直接模仿其他工作功能的模式
+    void adjustContrast(double brightness, double contrast);
+    void applyHistogramEqualization(int method, double clipLimit);
+    void flattenBackground(int kernelSize);
+
+    // 分割功能 - 阈值标记
+    void basicThreshold(double threshold, int type);
+    void rangeThreshold(double minVal, double maxVal);
+    void adaptiveThreshold(int method, int type, int blockSize, double C);
+    void emThreshold();
+    void localThreshold();
     
 private:
     // 内部辅助函数

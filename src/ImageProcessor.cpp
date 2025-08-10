@@ -16,7 +16,7 @@ bool ImageProcessor::loadImage(const std::string& path) {
     cv::Mat image = cv::imread(path, cv::IMREAD_COLOR);
     
     if (image.empty()) {
-        std::cerr << "无法加载图像: " << path << std::endl;
+        std::cerr << "Failed to load image: " << path << std::endl;
         return false;
     }
     
@@ -25,8 +25,8 @@ bool ImageProcessor::loadImage(const std::string& path) {
     imagePath = path;
     updateDisplayImage();
     
-    std::cout << "成功加载图像: " << path << std::endl;
-    std::cout << "图像尺寸: " << image.cols << "x" << image.rows << std::endl;
+    std::cout << "Successfully loaded image: " << path << std::endl;
+    std::cout << "Image size: " << image.cols << "x" << image.rows << std::endl;
     
     return true;
 }
@@ -43,7 +43,7 @@ void ImageProcessor::resetToOriginal() {
     if (!originalImage.empty()) {
         currentImage = originalImage.clone();
         updateDisplayImage();
-        std::cout << "已重置到原始图像" << std::endl;
+        std::cout << "Reset to original image" << std::endl;
     }
 }
 
@@ -58,9 +58,9 @@ void ImageProcessor::convertToGrayscale() {
         // 转换回3通道用于显示
         cv::cvtColor(grayImage, currentImage, cv::COLOR_GRAY2BGR);
         updateDisplayImage();
-        std::cout << "已转换为灰度图像" << std::endl;
+        std::cout << "Converted to grayscale image" << std::endl;
     } else {
-        std::cout << "图像已经是灰度图像" << std::endl;
+        std::cout << "Image is already grayscale" << std::endl;
     }
 }
 
@@ -68,7 +68,7 @@ void ImageProcessor::colorSelect(int hue_min, int hue_max, int sat_min, int sat_
     ensureImageLoaded();
     
     if (currentImage.channels() != 3) {
-        std::cout << "颜色选择需要彩色图像" << std::endl;
+        std::cout << "Color selection requires color image" << std::endl;
         return;
     }
     
@@ -88,7 +88,7 @@ void ImageProcessor::colorSelect(int hue_min, int hue_max, int sat_min, int sat_
     currentImage = result;
     updateDisplayImage();
     
-    std::cout << "颜色选择完成 - HSV范围: H(" << hue_min << "-" << hue_max 
+    std::cout << "Color selection completed - HSV range: H(" << hue_min << "-" << hue_max 
               << ") S(" << sat_min << "-" << sat_max 
               << ") V(" << val_min << "-" << val_max << ")" << std::endl;
 }
@@ -97,25 +97,25 @@ void ImageProcessor::colorCluster(int k) {
     ensureImageLoaded();
     
     if (currentImage.channels() != 3) {
-        std::cout << "颜色聚类需要彩色图像" << std::endl;
+        std::cout << "Color clustering requires color image" << std::endl;
         return;
     }
     
     currentImage = performKMeans(currentImage, k);
     updateDisplayImage();
-    std::cout << "颜色聚类完成 - K=" << k << std::endl;
+    std::cout << "Color clustering completed - K=" << k << std::endl;
 }
 
 void ImageProcessor::colorDeconvolution(int channel) {
     ensureImageLoaded();
     
     if (currentImage.channels() != 3) {
-        std::cout << "颜色反褶积需要彩色图像" << std::endl;
+        std::cout << "Color deconvolution requires color image" << std::endl;
         return;
     }
     
     if (channel < 0 || channel > 2) {
-        std::cout << "无效的通道索引，应为0-2" << std::endl;
+        std::cout << "Invalid channel index, should be 0-2" << std::endl;
         return;
     }
     
@@ -127,8 +127,8 @@ void ImageProcessor::colorDeconvolution(int channel) {
     cv::cvtColor(singleChannel, currentImage, cv::COLOR_GRAY2BGR);
     updateDisplayImage();
     
-    std::string channelNames[] = {"蓝色", "绿色", "红色"};
-    std::cout << "颜色反褶积完成 - 提取" << channelNames[channel] << "通道" << std::endl;
+    std::string channelNames[] = {"Blue", "Green", "Red"};
+    std::cout << "Color deconvolution completed - extracted " << channelNames[channel] << " channel" << std::endl;
 }
 
 void ImageProcessor::channelOperation(const std::string& operation, double value) {
@@ -146,17 +146,17 @@ void ImageProcessor::channelOperation(const std::string& operation, double value
         if (value != 0) {
             cv::divide(currentImage, cv::Scalar::all(value), result);
         } else {
-            std::cout << "除数不能为0" << std::endl;
+            std::cout << "Divisor cannot be zero" << std::endl;
             return;
         }
     } else {
-        std::cout << "不支持的操作: " << operation << std::endl;
+        std::cout << "Unsupported operation: " << operation << std::endl;
         return;
     }
     
     currentImage = result;
     updateDisplayImage();
-    std::cout << "通道操作完成 - " << operation << " " << value << std::endl;
+    std::cout << "Channel operation completed - " << operation << " " << value << std::endl;
 }
 
 // 辅助函数
@@ -257,4 +257,207 @@ void ImageProcessor::applyPreProcessedImage(const cv::Mat& processedImage) {
     } else {
         std::cout << "DEBUG: applyPreProcessedImage called with empty image!" << std::endl;
     }
+}
+
+// 预处理功能 - 直接模仿其他工作功能的模式
+void ImageProcessor::adjustContrast(double brightness, double contrast) {
+    ensureImageLoaded();
+    std::cout << "DEBUG: adjustContrast called with brightness=" << brightness << ", contrast=" << contrast << std::endl;
+
+    cv::Mat result;
+    currentImage.convertTo(result, currentImage.type(), contrast, brightness);
+    currentImage = result;
+    updateDisplayImage();
+
+    std::cout << "DEBUG: adjustContrast completed, image updated" << std::endl;
+}
+
+void ImageProcessor::applyHistogramEqualization(int method, double clipLimit) {
+    ensureImageLoaded();
+    std::cout << "DEBUG: applyHistogramEqualization called with method=" << method << ", clipLimit=" << clipLimit << std::endl;
+
+    cv::Mat result;
+
+    if (method == 0) {
+        // Global histogram equalization
+        if (currentImage.channels() == 1) {
+            cv::equalizeHist(currentImage, result);
+        } else {
+            cv::Mat ycrcb;
+            cv::cvtColor(currentImage, ycrcb, cv::COLOR_BGR2YCrCb);
+            std::vector<cv::Mat> channels;
+            cv::split(ycrcb, channels);
+            cv::equalizeHist(channels[0], channels[0]);
+            cv::merge(channels, ycrcb);
+            cv::cvtColor(ycrcb, result, cv::COLOR_YCrCb2BGR);
+        }
+    } else {
+        // Adaptive histogram equalization (CLAHE)
+        cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(clipLimit, cv::Size(8, 8));
+
+        if (currentImage.channels() == 1) {
+            clahe->apply(currentImage, result);
+        } else {
+            cv::Mat ycrcb;
+            cv::cvtColor(currentImage, ycrcb, cv::COLOR_BGR2YCrCb);
+            std::vector<cv::Mat> channels;
+            cv::split(ycrcb, channels);
+            clahe->apply(channels[0], channels[0]);
+            cv::merge(channels, ycrcb);
+            cv::cvtColor(ycrcb, result, cv::COLOR_YCrCb2BGR);
+        }
+    }
+
+    currentImage = result;
+    updateDisplayImage();
+
+    std::cout << "DEBUG: applyHistogramEqualization completed, image updated" << std::endl;
+}
+
+void ImageProcessor::flattenBackground(int kernelSize) {
+    ensureImageLoaded();
+    std::cout << "DEBUG: flattenBackground called with kernelSize=" << kernelSize << std::endl;
+
+    cv::Mat result;
+    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(kernelSize, kernelSize));
+    cv::morphologyEx(currentImage, result, cv::MORPH_TOPHAT, kernel);
+    currentImage = result;
+    updateDisplayImage();
+
+    std::cout << "DEBUG: flattenBackground completed, image updated" << std::endl;
+}
+
+// === 4. Segmentation (图像分割) - THRESHOLD (阈值标记) ===
+
+void ImageProcessor::basicThreshold(double threshold, int type) {
+    ensureImageLoaded();
+    std::cout << "DEBUG: basicThreshold called with threshold=" << threshold << ", type=" << type << std::endl;
+
+    cv::Mat result;
+    cv::Mat grayImage;
+    
+    // Convert to grayscale if needed
+    if (currentImage.channels() == 3) {
+        cv::cvtColor(currentImage, grayImage, cv::COLOR_BGR2GRAY);
+    } else {
+        grayImage = currentImage.clone();
+    }
+    
+    // Apply threshold
+    int thresholdType = (type == 0) ? cv::THRESH_BINARY : cv::THRESH_BINARY_INV;
+    cv::threshold(grayImage, result, threshold, 255, thresholdType);
+    
+    // Convert back to 3-channel for display
+    if (result.channels() == 1) {
+        cv::cvtColor(result, result, cv::COLOR_GRAY2BGR);
+    }
+    
+    currentImage = result;
+    updateDisplayImage();
+
+    std::cout << "DEBUG: basicThreshold completed, image updated" << std::endl;
+}
+
+void ImageProcessor::rangeThreshold(double minVal, double maxVal) {
+    ensureImageLoaded();
+    std::cout << "DEBUG: rangeThreshold called with min=" << minVal << ", max=" << maxVal << std::endl;
+
+    cv::Mat result;
+    cv::Mat grayImage;
+    
+    // Convert to grayscale if needed
+    if (currentImage.channels() == 3) {
+        cv::cvtColor(currentImage, grayImage, cv::COLOR_BGR2GRAY);
+    } else {
+        grayImage = currentImage.clone();
+    }
+    
+    // Apply range threshold using inRange
+    cv::inRange(grayImage, cv::Scalar(minVal), cv::Scalar(maxVal), result);
+    
+    // Convert back to 3-channel for display
+    if (result.channels() == 1) {
+        cv::cvtColor(result, result, cv::COLOR_GRAY2BGR);
+    }
+    
+    currentImage = result;
+    updateDisplayImage();
+
+    std::cout << "DEBUG: rangeThreshold completed, image updated" << std::endl;
+}
+
+void ImageProcessor::adaptiveThreshold(int method, int type, int blockSize, double C) {
+    ensureImageLoaded();
+    std::cout << "DEBUG: adaptiveThreshold called with method=" << method << ", type=" << type 
+              << ", blockSize=" << blockSize << ", C=" << C << std::endl;
+
+    cv::Mat result;
+    cv::Mat grayImage;
+    
+    // Convert to grayscale if needed
+    if (currentImage.channels() == 3) {
+        cv::cvtColor(currentImage, grayImage, cv::COLOR_BGR2GRAY);
+    } else {
+        grayImage = currentImage.clone();
+    }
+    
+    // Ensure block size is odd and >= 3
+    if (blockSize % 2 == 0) blockSize++;
+    if (blockSize < 3) blockSize = 3;
+    
+    // Apply adaptive threshold
+    int adaptiveMethod = (method == 0) ? cv::ADAPTIVE_THRESH_MEAN_C : cv::ADAPTIVE_THRESH_GAUSSIAN_C;
+    int thresholdType = (type == 0) ? cv::THRESH_BINARY : cv::THRESH_BINARY_INV;
+    
+    cv::adaptiveThreshold(grayImage, result, 255, adaptiveMethod, thresholdType, blockSize, C);
+    
+    // Convert back to 3-channel for display
+    if (result.channels() == 1) {
+        cv::cvtColor(result, result, cv::COLOR_GRAY2BGR);
+    }
+    
+    currentImage = result;
+    updateDisplayImage();
+
+    std::cout << "DEBUG: adaptiveThreshold completed, image updated" << std::endl;
+}
+
+void ImageProcessor::emThreshold() {
+    ensureImageLoaded();
+    std::cout << "DEBUG: emThreshold called (simplified implementation using Otsu's method)" << std::endl;
+
+    cv::Mat result;
+    cv::Mat grayImage;
+    
+    // Convert to grayscale if needed
+    if (currentImage.channels() == 3) {
+        cv::cvtColor(currentImage, grayImage, cv::COLOR_BGR2GRAY);
+    } else {
+        grayImage = currentImage.clone();
+    }
+    
+    // Use Otsu's method as a simplified E-M threshold implementation
+    double threshold = cv::threshold(grayImage, result, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+    
+    std::cout << "DEBUG: Otsu threshold value: " << threshold << std::endl;
+    
+    // Convert back to 3-channel for display
+    if (result.channels() == 1) {
+        cv::cvtColor(result, result, cv::COLOR_GRAY2BGR);
+    }
+    
+    currentImage = result;
+    updateDisplayImage();
+
+    std::cout << "DEBUG: emThreshold completed, image updated" << std::endl;
+}
+
+void ImageProcessor::localThreshold() {
+    ensureImageLoaded();
+    std::cout << "DEBUG: localThreshold called (simplified implementation using adaptive threshold)" << std::endl;
+
+    // Use adaptive threshold as a simplified local threshold implementation
+    adaptiveThreshold(1, 0, 11, 2.0); // Gaussian method, binary, block size 11, C=2.0
+    
+    std::cout << "DEBUG: localThreshold completed using adaptive threshold" << std::endl;
 }

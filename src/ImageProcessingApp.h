@@ -53,7 +53,8 @@ private:
         COLOR_DECONVOLUTION = 4,
         CHANNEL_OPERATION = 5,
         RESET_IMAGE = 6,
-        PRE_PROCESSING = 7
+        PRE_PROCESSING = 7,
+        SEGMENTATION = 8
     };
 
     enum class PreProcessingFunction {
@@ -89,6 +90,16 @@ private:
         GRAYSCALE_RECONSTRUCTION = 22
     };
 
+    enum class SegmentationFunction {
+        NONE = -1,
+        // THRESHOLD (阈值标记)
+        BASIC_THRESHOLD = 0,
+        RANGE_THRESHOLD = 1,
+        ADAPTIVE_THRESHOLD = 2,
+        EM_THRESHOLD = 3,
+        LOCAL_THRESHOLD = 4
+    };
+
     ModalFunction currentModal;     // 当前显示的模态窗口
     cv::Mat previewImage;          // 预览图像
     bool isProcessing;             // 是否正在处理中
@@ -101,6 +112,9 @@ private:
 
     // 预处理功能相关
     PreProcessingFunction currentPreProcessingFunction;
+
+    // 分割功能相关
+    SegmentationFunction currentSegmentationFunction;
 
     // 预处理参数
     double brightness;             // 亮度调整 (-100 to +100)
@@ -116,6 +130,14 @@ private:
     int histogramMethod;          // 直方图均衡化方法 (0=global, 1=adaptive)
     double clipLimit;             // CLAHE剪切限制 (1.0 to 40.0)
     int flattenKernelSize;        // 背景平坦化核大小 (5 to 51, odd only)
+
+    // 阈值标记参数
+    double thresholdValue;        // 基本阈值 (0-255)
+    double thresholdMin, thresholdMax;  // 范围阈值 (0-255)
+    int adaptiveMethod;           // 自适应方法 (0=MEAN, 1=GAUSSIAN)
+    int thresholdType;            // 阈值类型 (0=BINARY, 1=BINARY_INV)
+    int blockSize;                // 自适应阈值块大小
+    double C;                     // 自适应阈值常数
 
     // 参数变化检测用的前一个值
     double prevBrightness;
@@ -175,6 +197,11 @@ private:
     void renderResetImageModal();
     void renderPreProcessingModal();
     void renderPreProcessingParameters();
+    void renderSegmentationModal();
+    void renderSegmentationParameters();
+    void renderBasicThresholdParameters(int startY);
+    void renderRangeThresholdParameters(int startY);
+    void renderAdaptiveThresholdParameters(int startY);
     void renderAdjustContrastParameters(int startY);
     void renderHistogramEqualizationParameters(int startY);
     void renderFlattenBackgroundParameters(int startY);
@@ -200,6 +227,12 @@ private:
     void applyPreProcessingFunction(PreProcessingFunction function);
     void updatePreProcessingPreview(PreProcessingFunction function);
 
+    /**
+     * @brief 分割功能实现方法
+     */
+    void applySegmentationFunction(SegmentationFunction function);
+    void updateSegmentationPreview(SegmentationFunction function);
+
     // 具体的预处理算法实现
     cv::Mat applyAdjustContrast(const cv::Mat& image, double brightness, double contrast);
     cv::Mat applyHistogramEqualization(const cv::Mat& image);
@@ -224,6 +257,13 @@ private:
     cv::Mat applyFFTFilter(const cv::Mat& image);
     cv::Mat applyGrayscaleInterpolation(const cv::Mat& image);
     cv::Mat applyGrayscaleReconstruction(const cv::Mat& image);
+
+    // 具体的分割算法实现
+    cv::Mat applyBasicThreshold(const cv::Mat& image, double threshold, int type);
+    cv::Mat applyRangeThreshold(const cv::Mat& image, double minVal, double maxVal);
+    cv::Mat applyAdaptiveThreshold(const cv::Mat& image, int method, int type, int blockSize, double C);
+    cv::Mat applyEMThreshold(const cv::Mat& image);
+    cv::Mat applyLocalThreshold(const cv::Mat& image);
     
     /**
      * @brief 打开文件对话框

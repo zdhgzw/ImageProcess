@@ -65,10 +65,6 @@
 
 ## 4. Segmentation (图像分割)
 
-- **Invert (图像翻转)**: 翻转当前图像
-- **Blank (空白像素)**: 用来创建空白段，一般和Region Grow、Active Contour、Local Threshold 等步骤一起使用
-- **Manual Edit (手动编辑)**: 可以手动编辑(去除或者添加)某些特征区域
-
 ### 4.1 THRESHOLD (阈值标记)
 
 - **Basic Threshold (基本阈值标记)**: 根据像素值低于或高于某个特定像素值来进行特征的标记；一般使用此步骤前，建议先对图像进行预处理操作

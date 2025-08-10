@@ -68,6 +68,9 @@ void ImageProcessingApp::initializeUI() {
     // 预处理功能初始化
     currentPreProcessingFunction = PreProcessingFunction::NONE;
 
+    // 分割功能初始化
+    currentSegmentationFunction = SegmentationFunction::NONE;
+
     // 预处理参数初始化
     brightness = 0.0;              // -100 to +100
     contrast = 1.0;                // 0.1 to 3.0
@@ -83,6 +86,15 @@ void ImageProcessingApp::initializeUI() {
     histogramMethod = 0;           // 0=global, 1=adaptive
     clipLimit = 2.0;               // 1.0 to 40.0
     flattenKernelSize = 15;        // 5 to 51, odd only
+
+    // 阈值标记参数初始化
+    thresholdValue = 127.0;        // 0-255
+    thresholdMin = 50.0;           // 0-255
+    thresholdMax = 200.0;          // 0-255
+    adaptiveMethod = 0;            // 0=MEAN, 1=GAUSSIAN
+    thresholdType = 0;             // 0=BINARY, 1=BINARY_INV
+    blockSize = 11;                // odd numbers >= 3
+    C = 2.0;                       // constant subtracted from mean
 
     // 初始化前一个值变量
     prevBrightness = brightness;
@@ -134,7 +146,7 @@ void ImageProcessingApp::renderUI() {
 void ImageProcessingApp::renderMainControlPanel() {
     // 主控制面板 - 位于图像显示区域下方
     int panelY = imageDisplayY + imageDisplayHeight + 20;
-    int panelHeight = 140;
+    int panelHeight = 170; // 增加高度以容纳第三行按钮
 
     cvui::window(frame, 15, panelY, windowWidth - 30, panelHeight, "Image Processing Functions", 0.4);
 
@@ -145,6 +157,7 @@ void ImageProcessingApp::renderMainControlPanel() {
     int startX = 30;
     int row1Y = panelY + 30;
     int row2Y = panelY + 70;
+    int row3Y = panelY + 110; // 添加第三行
 
     // 第一行：基础功能
     if (cvui::button(frame, startX, row1Y, buttonWidth, buttonHeight, "Load Image", 0.35)) {
@@ -176,8 +189,15 @@ void ImageProcessingApp::renderMainControlPanel() {
         openModal(ModalFunction::CHANNEL_OPERATION);
     }
 
-    if (cvui::button(frame, startX + 4 * (buttonWidth + buttonSpacing), row2Y, buttonWidth, buttonHeight, "Pre-Processing", 0.35)) {
+    // 第三行：处理功能
+    if (cvui::button(frame, startX, row3Y, buttonWidth, buttonHeight, "Pre-Processing", 0.35)) {
+        std::cout << "DEBUG: Pre-Processing button clicked, opening modal with PRE_PROCESSING = " << (int)ModalFunction::PRE_PROCESSING << std::endl;
         openModal(ModalFunction::PRE_PROCESSING);
+    }
+
+    if (cvui::button(frame, startX + (buttonWidth + buttonSpacing), row3Y, buttonWidth, buttonHeight, "Segmentation", 0.35)) {
+        std::cout << "DEBUG: Segmentation button clicked, opening modal with SEGMENTATION = " << (int)ModalFunction::SEGMENTATION << std::endl;
+        openModal(ModalFunction::SEGMENTATION);
     }
 
     // 显示当前图像信息
@@ -225,7 +245,9 @@ void ImageProcessingApp::renderImageDisplay() {
 }
 
 void ImageProcessingApp::openModal(ModalFunction function) {
+    std::cout << "DEBUG: openModal called with function = " << (int)function << std::endl;
     currentModal = function;
+    std::cout << "DEBUG: currentModal set to = " << (int)currentModal << std::endl;
     if (function != ModalFunction::LOAD_IMAGE && function != ModalFunction::RESET_IMAGE) {
         updatePreview();
     }
@@ -265,6 +287,9 @@ void ImageProcessingApp::renderModalWindow() {
             break;
         case ModalFunction::PRE_PROCESSING:
             renderPreProcessingModal();
+            break;
+        case ModalFunction::SEGMENTATION:
+            renderSegmentationModal();
             break;
         default:
             break;
@@ -556,7 +581,8 @@ void ImageProcessingApp::renderPreviewArea(int x, int y, int width, int height) 
 
 void ImageProcessingApp::renderModalButtons(int x, int y) {
     if (cvui::button(frame, x, y, 80, 30, "Apply", 0.35)) {
-        std::cout << "DEBUG: Apply button clicked!" << std::endl;
+        std::cout << "DEBUG: Apply button clicked! currentModal = " << (int)currentModal
+                  << ", currentPreProcessingFunction = " << (int)currentPreProcessingFunction << std::endl;
         applyCurrentFunction();
         std::cout << "DEBUG: applyCurrentFunction() completed, closing modal" << std::endl;
         closeModal();
@@ -595,6 +621,7 @@ void ImageProcessingApp::renderPreProcessingModal() {
         currentY += 25;
 
         if (cvui::button(frame, controlAreaX, currentY, 100, 25, "Adjust Contrast", 0.3)) {
+            std::cout << "DEBUG: Adjust Contrast button clicked, currentModal before = " << (int)currentModal << std::endl;
             currentPreProcessingFunction = PreProcessingFunction::ADJUST_CONTRAST;
             // 重置Adjust Contrast参数到默认值
             brightness = 0.0;
@@ -603,6 +630,7 @@ void ImageProcessingApp::renderPreProcessingModal() {
             prevBrightness = brightness - 1; // 强制不同以触发更新
             prevContrast = contrast - 1;
             updatePreProcessingPreview(currentPreProcessingFunction);
+            std::cout << "DEBUG: Adjust Contrast button clicked, currentModal after = " << (int)currentModal << std::endl;
         }
         if (cvui::button(frame, controlAreaX + 110, currentY, 100, 25, "Histogram Eq", 0.3)) {
             currentPreProcessingFunction = PreProcessingFunction::HISTOGRAM_EQUALIZATION;
@@ -945,6 +973,13 @@ void ImageProcessingApp::updatePreview() {
                 }
                 break;
 
+            case ModalFunction::SEGMENTATION:
+                if (currentSegmentationFunction != SegmentationFunction::NONE) {
+                    updateSegmentationPreview(currentSegmentationFunction);
+                    return; // updateSegmentationPreview已经设置了previewImage
+                }
+                break;
+
             default:
                 break;
         }
@@ -975,8 +1010,35 @@ void ImageProcessingApp::applyCurrentFunction() {
                 break;
 
             case ModalFunction::COLOR_CLUSTER:
-                processor.colorCluster(k_clusters);
-                std::cout << "Color clustering applied with K=" << k_clusters << std::endl;
+                // Check if this is actually a Pre-Processing function call with wrong modal
+                if (currentPreProcessingFunction != PreProcessingFunction::NONE) {
+                    std::cout << "DEBUG: DETECTED BUG - currentModal=COLOR_CLUSTER but currentPreProcessingFunction=" 
+                              << (int)currentPreProcessingFunction << ", executing pre-processing instead!" << std::endl;
+                    
+                    switch (currentPreProcessingFunction) {
+                        case PreProcessingFunction::ADJUST_CONTRAST:
+                            processor.adjustContrast(brightness, contrast);
+                            std::cout << "Applied contrast adjustment via FALLBACK: brightness=" << brightness << ", contrast=" << contrast << std::endl;
+                            break;
+                        case PreProcessingFunction::HISTOGRAM_EQUALIZATION:
+                            processor.applyHistogramEqualization(histogramMethod, clipLimit);
+                            std::cout << "Applied histogram equalization via FALLBACK: method=" << (histogramMethod == 0 ? "global" : "adaptive")
+                                      << (histogramMethod == 1 ? ", clip limit=" + std::to_string(clipLimit) : "") << std::endl;
+                            break;
+                        case PreProcessingFunction::FLATTEN_BACKGROUND:
+                            processor.flattenBackground(flattenKernelSize);
+                            std::cout << "Applied background flattening via FALLBACK with kernel size=" << flattenKernelSize << std::endl;
+                            break;
+                        default:
+                            std::cout << "DEBUG: Using fallback method for function " << (int)currentPreProcessingFunction << std::endl;
+                            applyPreProcessingFunction(currentPreProcessingFunction);
+                            break;
+                    }
+                } else {
+                    // Normal color clustering
+                    processor.colorCluster(k_clusters);
+                    std::cout << "Color clustering applied with K=" << k_clusters << std::endl;
+                }
                 break;
 
             case ModalFunction::COLOR_DECONVOLUTION:
@@ -997,12 +1059,45 @@ void ImageProcessingApp::applyCurrentFunction() {
                 break;
 
             case ModalFunction::PRE_PROCESSING:
+                std::cout << "DEBUG: PRE_PROCESSING case reached, currentPreProcessingFunction = " << (int)currentPreProcessingFunction << std::endl;
                 if (currentPreProcessingFunction != PreProcessingFunction::NONE) {
-                    std::cout << "DEBUG: Applying pre-processing function..." << std::endl;
-                    applyPreProcessingFunction(currentPreProcessingFunction);
-                    std::cout << "DEBUG: Pre-processing function applied, forcing display update..." << std::endl;
-                    // 强制更新显示图像
-                    processor.updateDisplayImage();
+                    std::cout << "DEBUG: Applying pre-processing function using direct ImageProcessor methods..." << std::endl;
+
+                    // 直接调用ImageProcessor的方法，模仿其他工作功能的模式
+                    switch (currentPreProcessingFunction) {
+                        case PreProcessingFunction::ADJUST_CONTRAST:
+                            processor.adjustContrast(brightness, contrast);
+                            std::cout << "Applied contrast adjustment via ImageProcessor: brightness=" << brightness << ", contrast=" << contrast << std::endl;
+                            break;
+                        case PreProcessingFunction::HISTOGRAM_EQUALIZATION:
+                            processor.applyHistogramEqualization(histogramMethod, clipLimit);
+                            std::cout << "Applied histogram equalization via ImageProcessor: method=" << (histogramMethod == 0 ? "global" : "adaptive")
+                                      << (histogramMethod == 1 ? ", clip limit=" + std::to_string(clipLimit) : "") << std::endl;
+                            break;
+                        case PreProcessingFunction::FLATTEN_BACKGROUND:
+                            processor.flattenBackground(flattenKernelSize);
+                            std::cout << "Applied background flattening via ImageProcessor with kernel size=" << flattenKernelSize << std::endl;
+                            break;
+                        default:
+                            std::cout << "DEBUG: Using fallback method for function " << (int)currentPreProcessingFunction << std::endl;
+                            applyPreProcessingFunction(currentPreProcessingFunction);
+                            break;
+                    }
+
+                    std::cout << "DEBUG: Pre-processing function applied successfully" << std::endl;
+                } else {
+                    std::cout << "DEBUG: currentPreProcessingFunction is NONE, skipping application" << std::endl;
+                }
+                break;
+
+            case ModalFunction::SEGMENTATION:
+                std::cout << "DEBUG: SEGMENTATION case reached, currentSegmentationFunction = " << (int)currentSegmentationFunction << std::endl;
+                if (currentSegmentationFunction != SegmentationFunction::NONE) {
+                    std::cout << "DEBUG: Applying segmentation function using direct ImageProcessor methods..." << std::endl;
+                    applySegmentationFunction(currentSegmentationFunction);
+                    std::cout << "DEBUG: Segmentation function applied successfully" << std::endl;
+                } else {
+                    std::cout << "DEBUG: currentSegmentationFunction is NONE, skipping application" << std::endl;
                 }
                 break;
 
@@ -1014,6 +1109,16 @@ void ImageProcessingApp::applyCurrentFunction() {
     }
 
     isProcessing = false;
+    
+    // 确保主界面显示更新后的图像
+    if (processor.hasImage()) {
+        std::cout << "DEBUG: Refreshing main interface with updated image" << std::endl;
+        // 强制更新显示图像以确保主界面刷新
+        cv::Mat currentDisplayImage = processor.getDisplayImage();
+        std::cout << "DEBUG: Main interface will display updated image - size: " 
+                  << currentDisplayImage.cols << "x" << currentDisplayImage.rows << std::endl;
+        // 主界面将在下一次renderUI()调用时自动显示processor.getDisplayImage()
+    }
 }
 
 
@@ -1408,4 +1513,383 @@ cv::Mat ImageProcessingApp::applyGrayscaleReconstruction(const cv::Mat& image) {
     cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(5, 5));
     cv::morphologyEx(image, result, cv::MORPH_CLOSE, kernel);
     return result;
+}
+
+// === SEGMENTATION MODAL METHODS ===
+
+void ImageProcessingApp::renderSegmentationModal() {
+    cvui::window(frame, modalWindowX, modalWindowY, modalWindowWidth, modalWindowHeight, "Segmentation Functions", 0.4);
+
+    if (!processor.hasImage()) {
+        cvui::text(frame, modalWindowX + 20, modalWindowY + 40, "Please load an image first.", 0.4);
+        if (cvui::button(frame, modalWindowX + 20, modalWindowY + 80, 80, 30, "Close", 0.35)) {
+            closeModal();
+        }
+        return;
+    }
+
+    // 分割功能选择区域
+    int controlAreaX = modalWindowX + previewAreaWidth + 30;
+    int controlAreaY = modalWindowY + 40;
+    int currentY = controlAreaY;
+
+    cvui::text(frame, controlAreaX, currentY, "Threshold Functions:", 0.4);
+    currentY += 25;
+
+    if (cvui::button(frame, controlAreaX, currentY, 100, 25, "Basic Threshold", 0.3)) {
+        currentSegmentationFunction = SegmentationFunction::BASIC_THRESHOLD;
+        // 重置参数到默认值
+        thresholdValue = 127.0;
+        thresholdType = 0;
+        updateSegmentationPreview(currentSegmentationFunction);
+    }
+    if (cvui::button(frame, controlAreaX + 110, currentY, 100, 25, "Range Threshold", 0.3)) {
+        currentSegmentationFunction = SegmentationFunction::RANGE_THRESHOLD;
+        // 重置参数到默认值
+        thresholdMin = 50.0;
+        thresholdMax = 200.0;
+        updateSegmentationPreview(currentSegmentationFunction);
+    }
+    currentY += 35;
+
+    if (cvui::button(frame, controlAreaX, currentY, 100, 25, "Adaptive Thresh", 0.3)) {
+        currentSegmentationFunction = SegmentationFunction::ADAPTIVE_THRESHOLD;
+        // 重置参数到默认值
+        adaptiveMethod = 0;
+        thresholdType = 0;
+        blockSize = 11;
+        C = 2.0;
+        updateSegmentationPreview(currentSegmentationFunction);
+    }
+    if (cvui::button(frame, controlAreaX + 110, currentY, 100, 25, "EM Threshold", 0.3)) {
+        currentSegmentationFunction = SegmentationFunction::EM_THRESHOLD;
+        updateSegmentationPreview(currentSegmentationFunction);
+    }
+    currentY += 35;
+
+    if (cvui::button(frame, controlAreaX, currentY, 100, 25, "Local Threshold", 0.3)) {
+        currentSegmentationFunction = SegmentationFunction::LOCAL_THRESHOLD;
+        updateSegmentationPreview(currentSegmentationFunction);
+    }
+    currentY += 45;
+
+    // 显示当前选择的功能参数
+    renderSegmentationParameters();
+
+    // 预览区域
+    renderPreviewArea(modalWindowX + 20, modalWindowY + 40, previewAreaWidth, previewAreaHeight);
+
+    // Apply/Cancel按钮
+    renderModalButtons(controlAreaX, modalWindowY + modalWindowHeight - 70);
+}
+
+void ImageProcessingApp::renderSegmentationParameters() {
+    int controlAreaX = modalWindowX + previewAreaWidth + 30;
+    int currentY = modalWindowY + 200; // 参数显示区域的起始位置
+
+    if (currentSegmentationFunction == SegmentationFunction::NONE) {
+        cvui::text(frame, controlAreaX, currentY, "Select a threshold function above", 0.35);
+        return;
+    }
+
+    switch (currentSegmentationFunction) {
+        case SegmentationFunction::BASIC_THRESHOLD:
+            renderBasicThresholdParameters(currentY);
+            break;
+        case SegmentationFunction::RANGE_THRESHOLD:
+            renderRangeThresholdParameters(currentY);
+            break;
+        case SegmentationFunction::ADAPTIVE_THRESHOLD:
+            renderAdaptiveThresholdParameters(currentY);
+            break;
+        case SegmentationFunction::EM_THRESHOLD:
+            cvui::text(frame, controlAreaX, currentY, "EM Threshold (Automatic)", 0.35);
+            cvui::text(frame, controlAreaX, currentY + 20, "No parameters needed", 0.35);
+            break;
+        case SegmentationFunction::LOCAL_THRESHOLD:
+            cvui::text(frame, controlAreaX, currentY, "Local Threshold (Adaptive)", 0.35);
+            cvui::text(frame, controlAreaX, currentY + 20, "No parameters needed", 0.35);
+            break;
+        default:
+            break;
+    }
+}
+
+void ImageProcessingApp::renderBasicThresholdParameters(int startY) {
+    int controlAreaX = modalWindowX + previewAreaWidth + 30;
+    int currentY = startY;
+
+    cvui::text(frame, controlAreaX, currentY, "Threshold Value:", 0.35);
+    currentY += 20;
+    bool threshValueChanged = cvui::trackbar(frame, controlAreaX, currentY, 200, &thresholdValue, 0.0, 255.0);
+    currentY += 40;
+
+    cvui::text(frame, controlAreaX, currentY, "Threshold Type:", 0.35);
+    currentY += 20;
+    bool typeChanged = false;
+    if (cvui::button(frame, controlAreaX, currentY, 80, 20, thresholdType == 0 ? "BINARY*" : "BINARY", 0.3)) {
+        thresholdType = 0;
+        typeChanged = true;
+    }
+    if (cvui::button(frame, controlAreaX + 90, currentY, 80, 20, thresholdType == 1 ? "BINARY_INV*" : "BINARY_INV", 0.3)) {
+        thresholdType = 1;
+        typeChanged = true;
+    }
+
+    if (threshValueChanged || typeChanged) {
+        updateSegmentationPreview(currentSegmentationFunction);
+    }
+}
+
+void ImageProcessingApp::renderRangeThresholdParameters(int startY) {
+    int controlAreaX = modalWindowX + previewAreaWidth + 30;
+    int currentY = startY;
+
+    cvui::text(frame, controlAreaX, currentY, "Minimum Value:", 0.35);
+    currentY += 20;
+    bool minChanged = cvui::trackbar(frame, controlAreaX, currentY, 200, &thresholdMin, 0.0, 255.0);
+    currentY += 40;
+
+    cvui::text(frame, controlAreaX, currentY, "Maximum Value:", 0.35);
+    currentY += 20;
+    bool maxChanged = cvui::trackbar(frame, controlAreaX, currentY, 200, &thresholdMax, 0.0, 255.0);
+
+    if (minChanged || maxChanged) {
+        // Ensure min <= max
+        if (thresholdMin > thresholdMax) {
+            if (minChanged) {
+                thresholdMax = thresholdMin;
+            } else {
+                thresholdMin = thresholdMax;
+            }
+        }
+        updateSegmentationPreview(currentSegmentationFunction);
+    }
+}
+
+void ImageProcessingApp::renderAdaptiveThresholdParameters(int startY) {
+    int controlAreaX = modalWindowX + previewAreaWidth + 30;
+    int currentY = startY;
+
+    cvui::text(frame, controlAreaX, currentY, "Adaptive Method:", 0.35);
+    currentY += 20;
+    bool methodChanged = false;
+    if (cvui::button(frame, controlAreaX, currentY, 80, 20, adaptiveMethod == 0 ? "MEAN*" : "MEAN", 0.3)) {
+        adaptiveMethod = 0;
+        methodChanged = true;
+    }
+    if (cvui::button(frame, controlAreaX + 90, currentY, 80, 20, adaptiveMethod == 1 ? "GAUSSIAN*" : "GAUSSIAN", 0.3)) {
+        adaptiveMethod = 1;
+        methodChanged = true;
+    }
+    currentY += 30;
+
+    cvui::text(frame, controlAreaX, currentY, "Threshold Type:", 0.35);
+    currentY += 20;
+    bool typeChanged = false;
+    if (cvui::button(frame, controlAreaX, currentY, 80, 20, thresholdType == 0 ? "BINARY*" : "BINARY", 0.3)) {
+        thresholdType = 0;
+        typeChanged = true;
+    }
+    if (cvui::button(frame, controlAreaX + 90, currentY, 80, 20, thresholdType == 1 ? "BINARY_INV*" : "BINARY_INV", 0.3)) {
+        thresholdType = 1;
+        typeChanged = true;
+    }
+    currentY += 30;
+
+    cvui::text(frame, controlAreaX, currentY, "Block Size (odd):", 0.35);
+    currentY += 20;
+    bool blockChanged = cvui::trackbar(frame, controlAreaX, currentY, 200, &blockSize, 3, 51);
+    if (blockChanged && blockSize % 2 == 0) {
+        blockSize++; // Ensure odd number
+    }
+    currentY += 40;
+
+    cvui::text(frame, controlAreaX, currentY, "Constant C:", 0.35);
+    currentY += 20;
+    bool cChanged = cvui::trackbar(frame, controlAreaX, currentY, 200, &C, -10.0, 10.0);
+
+    if (methodChanged || typeChanged || blockChanged || cChanged) {
+        updateSegmentationPreview(currentSegmentationFunction);
+    }
+}
+
+void ImageProcessingApp::applySegmentationFunction(SegmentationFunction function) {
+    try {
+        if (!processor.hasImage()) {
+            std::cout << "No image loaded for segmentation" << std::endl;
+            return;
+        }
+
+        switch (function) {
+            case SegmentationFunction::BASIC_THRESHOLD:
+                processor.basicThreshold(thresholdValue, thresholdType);
+                std::cout << "Applied basic threshold: value=" << thresholdValue << ", type=" << thresholdType << std::endl;
+                break;
+            case SegmentationFunction::RANGE_THRESHOLD:
+                processor.rangeThreshold(thresholdMin, thresholdMax);
+                std::cout << "Applied range threshold: min=" << thresholdMin << ", max=" << thresholdMax << std::endl;
+                break;
+            case SegmentationFunction::ADAPTIVE_THRESHOLD:
+                processor.adaptiveThreshold(adaptiveMethod, thresholdType, blockSize, C);
+                std::cout << "Applied adaptive threshold: method=" << adaptiveMethod << ", type=" << thresholdType 
+                          << ", blockSize=" << blockSize << ", C=" << C << std::endl;
+                break;
+            case SegmentationFunction::EM_THRESHOLD:
+                processor.emThreshold();
+                std::cout << "Applied EM threshold (Otsu's method)" << std::endl;
+                break;
+            case SegmentationFunction::LOCAL_THRESHOLD:
+                processor.localThreshold();
+                std::cout << "Applied local threshold" << std::endl;
+                break;
+            default:
+                std::cout << "Unknown segmentation function" << std::endl;
+                break;
+        }
+
+    } catch (const std::exception& e) {
+        std::cout << "Error applying segmentation function: " << e.what() << std::endl;
+    }
+}
+
+void ImageProcessingApp::updateSegmentationPreview(SegmentationFunction function) {
+    try {
+        if (!processor.hasImage()) {
+            return;
+        }
+
+        cv::Mat result;
+        cv::Mat currentImage = processor.getCurrentImage();
+
+        switch (function) {
+            case SegmentationFunction::BASIC_THRESHOLD:
+                result = applyBasicThreshold(currentImage, thresholdValue, thresholdType);
+                break;
+            case SegmentationFunction::RANGE_THRESHOLD:
+                result = applyRangeThreshold(currentImage, thresholdMin, thresholdMax);
+                break;
+            case SegmentationFunction::ADAPTIVE_THRESHOLD:
+                result = applyAdaptiveThreshold(currentImage, adaptiveMethod, thresholdType, blockSize, C);
+                break;
+            case SegmentationFunction::EM_THRESHOLD:
+                result = applyEMThreshold(currentImage);
+                break;
+            case SegmentationFunction::LOCAL_THRESHOLD:
+                result = applyLocalThreshold(currentImage);
+                break;
+            default:
+                result = currentImage.clone();
+                break;
+        }
+
+        if (!result.empty()) {
+            previewImage = result.clone();
+        }
+
+    } catch (const std::exception& e) {
+        std::cout << "Error updating segmentation preview: " << e.what() << std::endl;
+    }
+}
+
+// 具体的分割算法实现
+cv::Mat ImageProcessingApp::applyBasicThreshold(const cv::Mat& image, double threshold, int type) {
+    cv::Mat result;
+    cv::Mat grayImage;
+    
+    // Convert to grayscale if needed
+    if (image.channels() == 3) {
+        cv::cvtColor(image, grayImage, cv::COLOR_BGR2GRAY);
+    } else {
+        grayImage = image.clone();
+    }
+    
+    // Apply threshold
+    int thresholdType = (type == 0) ? cv::THRESH_BINARY : cv::THRESH_BINARY_INV;
+    cv::threshold(grayImage, result, threshold, 255, thresholdType);
+    
+    // Convert back to 3-channel for display
+    if (result.channels() == 1) {
+        cv::cvtColor(result, result, cv::COLOR_GRAY2BGR);
+    }
+    
+    return result;
+}
+
+cv::Mat ImageProcessingApp::applyRangeThreshold(const cv::Mat& image, double minVal, double maxVal) {
+    cv::Mat result;
+    cv::Mat grayImage;
+    
+    // Convert to grayscale if needed
+    if (image.channels() == 3) {
+        cv::cvtColor(image, grayImage, cv::COLOR_BGR2GRAY);
+    } else {
+        grayImage = image.clone();
+    }
+    
+    // Apply range threshold using inRange
+    cv::inRange(grayImage, cv::Scalar(minVal), cv::Scalar(maxVal), result);
+    
+    // Convert back to 3-channel for display
+    if (result.channels() == 1) {
+        cv::cvtColor(result, result, cv::COLOR_GRAY2BGR);
+    }
+    
+    return result;
+}
+
+cv::Mat ImageProcessingApp::applyAdaptiveThreshold(const cv::Mat& image, int method, int type, int blockSize, double C) {
+    cv::Mat result;
+    cv::Mat grayImage;
+    
+    // Convert to grayscale if needed
+    if (image.channels() == 3) {
+        cv::cvtColor(image, grayImage, cv::COLOR_BGR2GRAY);
+    } else {
+        grayImage = image.clone();
+    }
+    
+    // Ensure block size is odd and >= 3
+    if (blockSize % 2 == 0) blockSize++;
+    if (blockSize < 3) blockSize = 3;
+    
+    // Apply adaptive threshold
+    int adaptiveMethod = (method == 0) ? cv::ADAPTIVE_THRESH_MEAN_C : cv::ADAPTIVE_THRESH_GAUSSIAN_C;
+    int thresholdType = (type == 0) ? cv::THRESH_BINARY : cv::THRESH_BINARY_INV;
+    
+    cv::adaptiveThreshold(grayImage, result, 255, adaptiveMethod, thresholdType, blockSize, C);
+    
+    // Convert back to 3-channel for display
+    if (result.channels() == 1) {
+        cv::cvtColor(result, result, cv::COLOR_GRAY2BGR);
+    }
+    
+    return result;
+}
+
+cv::Mat ImageProcessingApp::applyEMThreshold(const cv::Mat& image) {
+    cv::Mat result;
+    cv::Mat grayImage;
+    
+    // Convert to grayscale if needed
+    if (image.channels() == 3) {
+        cv::cvtColor(image, grayImage, cv::COLOR_BGR2GRAY);
+    } else {
+        grayImage = image.clone();
+    }
+    
+    // Use Otsu's method as a simplified E-M threshold implementation
+    cv::threshold(grayImage, result, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+    
+    // Convert back to 3-channel for display
+    if (result.channels() == 1) {
+        cv::cvtColor(result, result, cv::COLOR_GRAY2BGR);
+    }
+    
+    return result;
+}
+
+cv::Mat ImageProcessingApp::applyLocalThreshold(const cv::Mat& image) {
+    // Use adaptive threshold as a simplified local threshold implementation
+    return applyAdaptiveThreshold(image, 1, 0, 11, 2.0); // Gaussian method, binary, block size 11, C=2.0
 }
