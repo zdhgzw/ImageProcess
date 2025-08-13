@@ -1,6 +1,12 @@
 #pragma once
 
 #include "ImageProcessor.h"
+#include "PreProcessing.h"
+#include "Segmentation.h"
+#include "Morphology.h"
+#include "CleanUp.h"
+#include "Measurements.h"
+#include "UIComponents.h"
 #include <opencv2/opencv.hpp>
 #include <string>
 #include "cvui.h"
@@ -33,12 +39,15 @@ private:
     // K-means聚类参数
     int k_clusters;
 
-    // 通道选择
-    int selected_channel;
+    // 颜色反褶积参数
+    int deconvolution_channel;
 
     // 通道操作参数
-    int operation_type;  // 0=add, 1=subtract, 2=multiply, 3=divide
+    int operation_type;
     double operation_value;
+
+    // 通道选择
+    int selected_channel;
 
     // UI控制变量
     std::string selectedImagePath;
@@ -54,51 +63,15 @@ private:
         CHANNEL_OPERATION = 5,
         RESET_IMAGE = 6,
         PRE_PROCESSING = 7,
-        SEGMENTATION = 8
+        SEGMENTATION = 8,
+        MORPHOLOGY = 9,
+        CLEAN_UP = 10,
+        MEASUREMENTS = 11
     };
 
-    enum class PreProcessingFunction {
-        NONE = -1,
-        // CONTRAST (对比度调节)
-        ADJUST_CONTRAST = 0,
-        HISTOGRAM_EQUALIZATION = 1,
-        FLATTEN_BACKGROUND = 2,
-        // NOISE-REDUCTION (降噪处理)
-        MEDIAN_FILTER = 3,
-        WIENER_FILTER = 4,
-        NON_LOCAL_MEANS = 5,
-        // BLUR (模糊处理)
-        GAUSSIAN_BLUR = 6,
-        AVERAGE_BLUR = 7,
-        SUM_FILTER = 8,
-        GRAYSCALE_DILATE = 9,
-        GRAYSCALE_ERODE = 10,
-        // EDGES (突出边界)
-        STDDEV_FILTER = 11,
-        ENTROPY_FILTER = 12,
-        GRADIENT_FILTER = 13,
-        HIGHLIGHT_LINES = 14,
-        // TEXTURE (突出纹理特征)
-        BRIGHT_TEXTURE = 15,
-        DARK_TEXTURE = 16,
-        ADVANCED_TEXTURE = 17,
-        SIMILARITY = 18,
-        // CORRECTION (图像修正)
-        SHARPEN = 19,
-        FFT_FILTER = 20,
-        GRAYSCALE_INTERPOLATION = 21,
-        GRAYSCALE_RECONSTRUCTION = 22
-    };
 
-    enum class SegmentationFunction {
-        NONE = -1,
-        // THRESHOLD (阈值标记)
-        BASIC_THRESHOLD = 0,
-        RANGE_THRESHOLD = 1,
-        ADAPTIVE_THRESHOLD = 2,
-        EM_THRESHOLD = 3,
-        LOCAL_THRESHOLD = 4
-    };
+
+
 
     ModalFunction currentModal;     // 当前显示的模态窗口
     cv::Mat previewImage;          // 预览图像
@@ -115,6 +88,16 @@ private:
 
     // 分割功能相关
     SegmentationFunction currentSegmentationFunction;
+
+    // 形态学功能相关
+    MorphologyFunction currentMorphologyFunction;
+
+    // 清理功能相关
+    CleanUpFunction currentCleanUpFunction;
+
+    // 测量功能相关
+    MeasurementsFunction currentMeasurementsFunction;
+    MeasurementResult lastMeasurementResult;
 
     // 预处理参数
     double brightness;             // 亮度调整 (-100 to +100)
@@ -138,6 +121,25 @@ private:
     int thresholdType;            // 阈值类型 (0=BINARY, 1=BINARY_INV)
     int blockSize;                // 自适应阈值块大小
     double C;                     // 自适应阈值常数
+
+    // 形态学参数
+    int morphKernelSize;          // 形态学核大小 (3-51, odd only)
+    double morphThreshold;        // 智能形态学阈值 (0-255)
+    int morphKernelType;          // 核类型 (0=RECT, 1=ELLIPSE, 2=CROSS)
+    double edgeThreshold;         // 边缘检测阈值 (10-300)
+    int separationMethod;         // 分离方法 (0=Canny, 1=Sobel, 2=Laplacian)
+
+    // 清理参数
+    int minHoleSize;              // 最小孔洞大小 (1-500)
+    int fillMethod;               // 填充方法 (0=Simple, 1=Morphological, 2=Flood)
+    int minFeatureSize;           // 最小特征大小 (1-1000)
+    int maxFeatureSize;           // 最大特征大小 (100-5000)
+    int rejectMethod;             // 拒绝方法 (0=Size-based, 1=Area+Morphology, 2=Contour-based)
+
+    // 测量参数
+    int minObjectSize;            // 最小对象大小 (1-1000)
+    int maxObjectSize;            // 最大对象大小 (100-50000)
+    double sensitivity;           // 检测敏感度 (0.1-1.0)
 
     // 参数变化检测用的前一个值
     double prevBrightness;
@@ -168,12 +170,12 @@ private:
     /**
      * @brief 渲染主界面
      */
-    void renderUI();
-    
+    void renderMainInterface();
+
     /**
      * @brief 渲染主控制面板
      */
-    void renderMainControlPanel();
+    void renderControlPanel();
 
     /**
      * @brief 渲染图像显示区域
@@ -181,89 +183,64 @@ private:
     void renderImageDisplay();
 
     /**
-     * @brief 渲染模态窗口
+     * @brief 渲染当前模态窗口
      */
-    void renderModalWindow();
+    void renderCurrentModal();
 
     /**
      * @brief 渲染特定功能的模态窗口
      */
     void renderLoadImageModal();
-    void renderGrayscaleModal();
+    void renderConvertGrayscaleModal();
     void renderColorSelectModal();
     void renderColorClusterModal();
     void renderColorDeconvolutionModal();
     void renderChannelOperationModal();
     void renderResetImageModal();
     void renderPreProcessingModal();
-    void renderPreProcessingParameters();
+    void renderMorphologyModal();
+    void renderCleanUpModal();
+    void renderMeasurementsModal();
     void renderSegmentationModal();
     void renderSegmentationParameters();
     void renderBasicThresholdParameters(int startY);
     void renderRangeThresholdParameters(int startY);
     void renderAdaptiveThresholdParameters(int startY);
-    void renderAdjustContrastParameters(int startY);
-    void renderHistogramEqualizationParameters(int startY);
-    void renderFlattenBackgroundParameters(int startY);
+    void renderMorphologyParameters();
+    void renderDilateErodeParameters(int startY);
 
     /**
      * @brief 模态窗口辅助方法
      */
-    void openModal(ModalFunction function);
-    void closeModal();
     void updatePreview();
-    void applyCurrentFunction();
     void renderPreviewArea(int x, int y, int width, int height);
-    void renderModalButtons(int x, int y);
 
     /**
      * @brief 执行K-Means聚类
      */
     cv::Mat performKMeans(const cv::Mat& image, int k);
 
-    /**
-     * @brief 预处理功能实现方法
-     */
-    void applyPreProcessingFunction(PreProcessingFunction function);
-    void updatePreProcessingPreview(PreProcessingFunction function);
 
-    /**
-     * @brief 分割功能实现方法
-     */
-    void applySegmentationFunction(SegmentationFunction function);
-    void updateSegmentationPreview(SegmentationFunction function);
 
-    // 具体的预处理算法实现
-    cv::Mat applyAdjustContrast(const cv::Mat& image, double brightness, double contrast);
-    cv::Mat applyHistogramEqualization(const cv::Mat& image);
-    cv::Mat applyFlattenBackground(const cv::Mat& image, int kernelSize);
-    cv::Mat applyMedianFilter(const cv::Mat& image, int kernelSize);
-    cv::Mat applyWienerFilter(const cv::Mat& image, int kernelSize);
-    cv::Mat applyNonLocalMeans(const cv::Mat& image, double h, int templateWindowSize, int searchWindowSize);
-    cv::Mat applyGaussianBlur(const cv::Mat& image, int kernelSize, double sigmaX, double sigmaY);
-    cv::Mat applyAverageBlur(const cv::Mat& image, int kernelSize);
-    cv::Mat applySumFilter(const cv::Mat& image, int kernelSize);
-    cv::Mat applyGrayscaleDilate(const cv::Mat& image, int kernelSize);
-    cv::Mat applyGrayscaleErode(const cv::Mat& image, int kernelSize);
-    cv::Mat applyStdDevFilter(const cv::Mat& image, int kernelSize);
-    cv::Mat applyEntropyFilter(const cv::Mat& image, int kernelSize);
-    cv::Mat applyGradientFilter(const cv::Mat& image);
-    cv::Mat applyHighlightLines(const cv::Mat& image);
-    cv::Mat applyBrightTexture(const cv::Mat& image, int kernelSize);
-    cv::Mat applyDarkTexture(const cv::Mat& image, int kernelSize);
-    cv::Mat applyAdvancedTexture(const cv::Mat& image, int kernelSize);
-    cv::Mat applySimilarity(const cv::Mat& image, int kernelSize);
-    cv::Mat applySharpen(const cv::Mat& image, double strength);
-    cv::Mat applyFFTFilter(const cv::Mat& image);
-    cv::Mat applyGrayscaleInterpolation(const cv::Mat& image);
-    cv::Mat applyGrayscaleReconstruction(const cv::Mat& image);
+
+
+
 
     // 具体的分割算法实现
     cv::Mat applyBasicThreshold(const cv::Mat& image, double threshold, int type);
     cv::Mat applyRangeThreshold(const cv::Mat& image, double minVal, double maxVal);
     cv::Mat applyAdaptiveThreshold(const cv::Mat& image, int method, int type, int blockSize, double C);
-    cv::Mat applyEMThreshold(const cv::Mat& image);
+    cv::Mat applyOtsuThreshold(const cv::Mat& image);
     cv::Mat applyLocalThreshold(const cv::Mat& image);
+
+    // 具体的形态学算法实现
+    cv::Mat applyDilateUniform(const cv::Mat& image, int kernelSize, int kernelType);
+    cv::Mat applyDilateSmart(const cv::Mat& image, int kernelSize, int kernelType, double threshold);
+    cv::Mat applyDilateRetain(const cv::Mat& image, int kernelSize, int kernelType);
+    cv::Mat applyErodeUniform(const cv::Mat& image, int kernelSize, int kernelType);
+    cv::Mat applyErodeSmart(const cv::Mat& image, int kernelSize, int kernelType, double threshold);
+    cv::Mat applyErodeRetain(const cv::Mat& image, int kernelSize, int kernelType);
+    cv::Mat applySeparateFeatures(const cv::Mat& image);
     
     /**
      * @brief 打开文件对话框
@@ -274,7 +251,99 @@ private:
     /**
      * @brief 缩放图像以适应显示区域
      * @param image 原始图像
+     * @param maxWidth 最大宽度
+     * @param maxHeight 最大高度
      * @return 缩放后的图像
      */
-    cv::Mat scaleImageToFit(const cv::Mat& image);
+    cv::Mat scaleImageToFit(const cv::Mat& image, int maxWidth = 800, int maxHeight = 400);
+
+    /**
+     * @brief 打开模态窗口
+     */
+    void openModal(ModalFunction modal);
+
+    /**
+     * @brief 关闭模态窗口
+     */
+    void closeModal();
+
+    /**
+     * @brief 渲染模态窗口按钮
+     */
+    void renderModalButtons(int x, int y);
+
+    /**
+     * @brief 应用当前功能
+     */
+    void applyCurrentFunction();
+
+    /**
+     * @brief 应用预处理功能
+     */
+    void applyPreProcessingFunction(PreProcessingFunction function);
+
+    /**
+     * @brief 更新预处理预览
+     */
+    void updatePreProcessingPreview(PreProcessingFunction function);
+
+    /**
+     * @brief 更新颜色选择预览
+     */
+    void updateColorSelectPreview();
+
+    /**
+     * @brief 更新颜色聚类预览
+     */
+    void updateColorClusterPreview();
+
+    /**
+     * @brief 更新颜色反褶积预览
+     */
+    void updateColorDeconvolutionPreview();
+
+    /**
+     * @brief 更新通道操作预览
+     */
+    void updateChannelOperationPreview();
+
+    /**
+     * @brief 应用分割功能
+     */
+    void applySegmentationFunction(SegmentationFunction function);
+
+    /**
+     * @brief 更新分割预览
+     */
+    void updateSegmentationPreview(SegmentationFunction function);
+
+    /**
+     * @brief 应用形态学功能
+     */
+    void applyMorphologyFunction(MorphologyFunction function);
+
+    /**
+     * @brief 更新形态学预览
+     */
+    void updateMorphologyPreview(MorphologyFunction function);
+
+    /**
+     * @brief 应用清理功能
+     */
+    void applyCleanUpFunction(CleanUpFunction function);
+
+    /**
+     * @brief 更新清理预览
+     */
+    void updateCleanUpPreview(CleanUpFunction function);
+
+    /**
+     * @brief 应用测量功能
+     */
+    void applyMeasurementsFunction(MeasurementsFunction function);
+
+    /**
+     * @brief 更新测量预览
+     */
+    void updateMeasurementsPreview(MeasurementsFunction function);
 };

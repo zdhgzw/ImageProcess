@@ -13,7 +13,6 @@ find_package(OpenCV REQUIRED)
 
 # Include directories
 include_directories(${OpenCV_INCLUDE_DIRS})
-include_directories(${CMAKE_SOURCE_DIR}/include)
 include_directories(${CMAKE_SOURCE_DIR}/third_party/cvui)
 
 # Source files
@@ -21,17 +20,32 @@ set(SOURCES
     src/main.cpp
     src/ImageProcessingApp.cpp
     src/ImageProcessor.cpp
+    src/PreProcessing.cpp
+    src/Segmentation.cpp
+    src/Morphology.cpp
+    src/CleanUp.cpp
+    src/Measurements.cpp
+    src/UIComponents.cpp
 )
 
 # Headers
 set(HEADERS
-    src/ImageProcessingApp.h
-    src/ImageProcessor.h
+    include/ImageProcessingApp.h
+    include/ImageProcessor.h
+    include/PreProcessing.h
+    include/Segmentation.h
+    include/Morphology.h
+    include/CleanUp.h
+    include/Measurements.h
+    include/UIComponents.h
     third_party/cvui/cvui.h
 )
 
 # Create executable
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
+
+# Target include directories
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/include)
 
 # Link libraries
 target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBS})
