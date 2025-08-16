@@ -137,9 +137,9 @@ void ImageProcessingApp::renderMainInterface() {
 }
 
 void ImageProcessingApp::renderImageDisplay() {
-    cv::rectangle(frame, cv::Rect(imageDisplayX, imageDisplayY, imageDisplayWidth, imageDisplayHeight), 
+    cv::rectangle(frame, cv::Rect(imageDisplayX, imageDisplayY, imageDisplayWidth, imageDisplayHeight),
                   cv::Scalar(200, 200, 200), 2);
-    
+
     if (processor.hasImage()) {
         cv::Mat displayImg = processor.getDisplayImage();
         if (!displayImg.empty()) {
@@ -147,9 +147,15 @@ void ImageProcessingApp::renderImageDisplay() {
             if (!scaledImg.empty()) {
                 int imgX = imageDisplayX + (imageDisplayWidth - scaledImg.cols) / 2;
                 int imgY = imageDisplayY + (imageDisplayHeight - scaledImg.rows) / 2;
-                
-                // 强制创建新的图像副本以避免缓存问题
-                cv::Mat freshImage = scaledImg.clone();
+
+                // 确保图像是3通道的，以避免cvui::image的copyTo错误
+                cv::Mat freshImage;
+                if (scaledImg.channels() == 1) {
+                    cv::cvtColor(scaledImg, freshImage, cv::COLOR_GRAY2BGR);
+                } else {
+                    freshImage = scaledImg.clone();
+                }
+
                 cvui::image(frame, imgX, imgY, freshImage);
             }
         }

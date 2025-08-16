@@ -60,6 +60,7 @@ public:
     static cv::Mat flattenBackground(const cv::Mat& image, int kernelSize);
 
     // NOISE-REDUCTION类别算法
+    //kernelSize 1~31, must be odd
     static cv::Mat medianFilter(const cv::Mat& image, int kernelSize);
     static cv::Mat wienerFilter(const cv::Mat& image, int kernelSize);
     static cv::Mat nonLocalMeans(const cv::Mat& image, double h, int templateWindowSize, int searchWindowSize);

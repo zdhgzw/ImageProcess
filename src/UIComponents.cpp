@@ -29,13 +29,22 @@ cv::Mat UIComponents::scaleImageToFit(const cv::Mat& image, int maxWidth, int ma
 void UIComponents::renderPreviewArea(cv::Mat& frame, int x, int y, int width, int height, const cv::Mat& previewImage) {
     // 绘制预览区域边框
     cv::rectangle(frame, cv::Rect(x, y, width, height), cv::Scalar(200, 200, 200), 1);
-    
+
     if (!previewImage.empty()) {
         cv::Mat scaledPreview = scaleImageToFit(previewImage, width - 10, height - 10);
         if (!scaledPreview.empty()) {
             int imgX = x + (width - scaledPreview.cols) / 2;
             int imgY = y + (height - scaledPreview.rows) / 2;
-            cvui::image(frame, imgX, imgY, scaledPreview);
+
+            // 确保图像是3通道的，以避免cvui::image的copyTo错误
+            cv::Mat displayPreview;
+            if (scaledPreview.channels() == 1) {
+                cv::cvtColor(scaledPreview, displayPreview, cv::COLOR_GRAY2BGR);
+            } else {
+                displayPreview = scaledPreview.clone();
+            }
+
+            cvui::image(frame, imgX, imgY, displayPreview);
         }
     } else {
         cvui::text(frame, x + 10, y + height / 2, "No preview", 0.4);

@@ -10,25 +10,26 @@ Segmentation::~Segmentation() {
 // THRESHOLD类别算法实现
 cv::Mat Segmentation::basicThreshold(const cv::Mat& image, double threshold, int type) {
     cv::Mat result;
-    cv::Mat grayImage;
-    
-    // Convert to grayscale if needed
-    if (image.channels() == 3) {
+
+    std::cout << "DEBUG: basicThreshold input - size=" << image.size() << ", channels=" << image.channels() << std::endl;
+
+    // Apply threshold directly based on input image type
+    if (image.channels() == 1) {
+        // Already grayscale, apply threshold directly
+        int thresholdType = (type == 0) ? cv::THRESH_BINARY : cv::THRESH_BINARY_INV;
+        cv::threshold(image, result, threshold, 255, thresholdType);
+    } else if (image.channels() == 3) {
+        // Convert to grayscale first, then threshold
+        cv::Mat grayImage;
         cv::cvtColor(image, grayImage, cv::COLOR_BGR2GRAY);
+        int thresholdType = (type == 0) ? cv::THRESH_BINARY : cv::THRESH_BINARY_INV;
+        cv::threshold(grayImage, result, threshold, 255, thresholdType);
     } else {
-        grayImage = image.clone();
+        result = image.clone();
     }
-    
-    // Apply threshold
-    int thresholdType = (type == 0) ? cv::THRESH_BINARY : cv::THRESH_BINARY_INV;
-    cv::threshold(grayImage, result, threshold, 255, thresholdType);
-    
-    // Convert back to 3-channel for consistency
-    if (result.channels() == 1) {
-        cv::cvtColor(result, result, cv::COLOR_GRAY2BGR);
-    }
-    
-    std::cout << "DEBUG: basicThreshold applied with threshold=" << threshold << ", type=" << type << std::endl;
+
+    std::cout << "DEBUG: basicThreshold applied with threshold=" << threshold << ", type=" << type
+              << ", result channels=" << result.channels() << std::endl;
     return result;
 }
 
@@ -45,13 +46,9 @@ cv::Mat Segmentation::rangeThreshold(const cv::Mat& image, double minVal, double
     
     // Apply range threshold using inRange
     cv::inRange(grayImage, cv::Scalar(minVal), cv::Scalar(maxVal), result);
-    
-    // Convert back to 3-channel for consistency
-    if (result.channels() == 1) {
-        cv::cvtColor(result, result, cv::COLOR_GRAY2BGR);
-    }
-    
-    std::cout << "DEBUG: rangeThreshold applied with minVal=" << minVal << ", maxVal=" << maxVal << std::endl;
+
+    std::cout << "DEBUG: rangeThreshold applied with minVal=" << minVal << ", maxVal=" << maxVal
+              << ", result channels=" << result.channels() << std::endl;
     return result;
 }
 
@@ -75,14 +72,9 @@ cv::Mat Segmentation::adaptiveThreshold(const cv::Mat& image, int method, int ty
     int thresholdType = (type == 0) ? cv::THRESH_BINARY : cv::THRESH_BINARY_INV;
     
     cv::adaptiveThreshold(grayImage, result, 255, adaptiveMethod, thresholdType, blockSize, C);
-    
-    // Convert back to 3-channel for consistency
-    if (result.channels() == 1) {
-        cv::cvtColor(result, result, cv::COLOR_GRAY2BGR);
-    }
-    
-    std::cout << "DEBUG: adaptiveThreshold applied with method=" << method << ", type=" << type 
-              << ", blockSize=" << blockSize << ", C=" << C << std::endl;
+
+    std::cout << "DEBUG: adaptiveThreshold applied with method=" << method << ", type=" << type
+              << ", blockSize=" << blockSize << ", C=" << C << ", result channels=" << result.channels() << std::endl;
     return result;
 }
 
@@ -100,12 +92,7 @@ cv::Mat Segmentation::emThreshold(const cv::Mat& image) {
     // Use Otsu's method (EM-like threshold)
     cv::threshold(grayImage, result, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
     
-    // Convert back to 3-channel for consistency
-    if (result.channels() == 1) {
-        cv::cvtColor(result, result, cv::COLOR_GRAY2BGR);
-    }
-    
-    std::cout << "DEBUG: emThreshold (OTSU) applied" << std::endl;
+    std::cout << "DEBUG: emThreshold (OTSU) applied, result channels=" << result.channels() << std::endl;
     return result;
 }
 

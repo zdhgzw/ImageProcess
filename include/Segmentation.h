@@ -13,6 +13,8 @@ enum class SegmentationFunction {
     ADAPTIVE_THRESHOLD = 2,
     EM_THRESHOLD = 3,
     LOCAL_THRESHOLD = 4
+    //EDGES (边界识别)
+    //todo 分水岭分割
 };
 
 /**

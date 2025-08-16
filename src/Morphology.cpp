@@ -86,8 +86,12 @@ cv::Mat Morphology::separateFeatures(const cv::Mat& image, double edgeThreshold,
     cv::Mat result;
     cv::Mat grayImage;
 
-    // Convert to grayscale if needed
-    if (image.channels() == 3) {
+    std::cout << "DEBUG: separateFeatures input - size=" << image.size() << ", channels=" << image.channels() << std::endl;
+
+    // Use input image directly (assuming it's already in the correct format)
+    if (image.channels() == 1) {
+        grayImage = image.clone();
+    } else if (image.channels() == 3) {
         cv::cvtColor(image, grayImage, cv::COLOR_BGR2GRAY);
     } else {
         grayImage = image.clone();

@@ -23,32 +23,27 @@ MeasurementResult Measurements::countObjects(const cv::Mat& image, int minSize, 
 // 私有辅助方法实现
 std::vector<std::vector<cv::Point>> Measurements::detectObjects(const cv::Mat& image, int minSize, int maxSize, double sensitivity) {
     cv::Mat processedImage;
-    cv::Mat grayImage;
-    
-    // Convert to grayscale if needed
-    if (image.channels() == 3) {
-        cv::cvtColor(image, grayImage, cv::COLOR_BGR2GRAY);
+
+    std::cout << "DEBUG: detectObjects input - size=" << image.size() << ", channels=" << image.channels() << std::endl;
+
+    // Use input image directly (assuming it's already processed by previous steps)
+    if (image.channels() == 1) {
+        processedImage = image.clone();
+        std::cout << "DEBUG: Using single-channel input directly for object detection" << std::endl;
+    } else if (image.channels() == 3) {
+        // Convert to grayscale but don't apply additional processing
+        cv::cvtColor(image, processedImage, cv::COLOR_BGR2GRAY);
+        std::cout << "DEBUG: Converted to grayscale for object detection" << std::endl;
     } else {
-        grayImage = image.clone();
+        processedImage = image.clone();
     }
-    
-    // Apply preprocessing based on sensitivity
-    cv::Mat blurred;
-    int blurKernel = static_cast<int>(5 - sensitivity * 2); // Higher sensitivity = less blur
-    if (blurKernel < 1) blurKernel = 1;
-    if (blurKernel % 2 == 0) blurKernel++; // Ensure odd
-    
-    cv::GaussianBlur(grayImage, blurred, cv::Size(blurKernel, blurKernel), 0);
-    
-    // Apply threshold
-    cv::Mat binary;
-    double thresholdValue = 127.0 - (sensitivity - 0.5) * 50; // Adjust threshold based on sensitivity
-    cv::threshold(blurred, binary, thresholdValue, 255, cv::THRESH_BINARY);
-    
-    // Apply morphological operations to clean up
-    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(3, 3));
-    cv::morphologyEx(binary, processedImage, cv::MORPH_OPEN, kernel);
-    cv::morphologyEx(processedImage, processedImage, cv::MORPH_CLOSE, kernel);
+
+    // Apply minimal morphological operations based on sensitivity (only for noise reduction)
+    if (sensitivity < 0.8) {
+        cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(3, 3));
+        cv::morphologyEx(processedImage, processedImage, cv::MORPH_OPEN, kernel);
+        std::cout << "DEBUG: Applied minimal morphological opening for noise reduction" << std::endl;
+    }
     
     // Find contours
     std::vector<std::vector<cv::Point>> allContours;

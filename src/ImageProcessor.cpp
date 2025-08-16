@@ -45,37 +45,56 @@ const cv::Mat& ImageProcessor::getDisplayImage() const {
 
 void ImageProcessor::convertToGrayscale() {
     ensureImageLoaded();
-    
+
     if (currentImage.channels() == 3) {
         cv::Mat grayImage;
         cv::cvtColor(currentImage, grayImage, cv::COLOR_BGR2GRAY);
-        cv::cvtColor(grayImage, currentImage, cv::COLOR_GRAY2BGR);
+        currentImage = grayImage.clone(); // Keep as single channel grayscale
         updateDisplayImage();
-        std::cout << "Converted to grayscale" << std::endl;
+        std::cout << "Converted to grayscale (channels=" << currentImage.channels() << ")" << std::endl;
     } else {
-        std::cout << "Image is already grayscale" << std::endl;
+        std::cout << "Image is already grayscale (channels=" << currentImage.channels() << ")" << std::endl;
     }
 }
 
 void ImageProcessor::colorSelect(int hue_min, int hue_max, int sat_min, int sat_max, int val_min, int val_max) {
     ensureImageLoaded();
-    
+
+    std::cout << "DEBUG: colorSelect input - channels=" << currentImage.channels() << std::endl;
+
+    // Color selection only works on 3-channel images
+    if (currentImage.channels() != 3) {
+        std::cout << "WARNING: Color selection requires 3-channel image, current has " << currentImage.channels() << " channels" << std::endl;
+        return;
+    }
+
     cv::Mat hsv, mask, result;
     cv::cvtColor(currentImage, hsv, cv::COLOR_BGR2HSV);
-    
+
     cv::Scalar lower(hue_min, sat_min, val_min);
     cv::Scalar upper(hue_max, sat_max, val_max);
     cv::inRange(hsv, lower, upper, mask);
-    
+
+    // Initialize result with zeros and same type as currentImage
+    result = cv::Mat::zeros(currentImage.size(), currentImage.type());
     currentImage.copyTo(result, mask);
     currentImage = result;
     updateDisplayImage();
-    
+
     std::cout << "Applied color selection" << std::endl;
 }
 
 void ImageProcessor::colorCluster(int k) {
     ensureImageLoaded();
+
+    std::cout << "DEBUG: colorCluster input - channels=" << currentImage.channels() << std::endl;
+
+    // Color clustering only works on 3-channel images
+    if (currentImage.channels() != 3) {
+        std::cout << "WARNING: Color clustering requires 3-channel image, current has " << currentImage.channels() << " channels" << std::endl;
+        return;
+    }
+
     currentImage = performKMeans(currentImage, k);
     updateDisplayImage();
     std::cout << "Applied K-means clustering with k=" << k << std::endl;
@@ -83,22 +102,31 @@ void ImageProcessor::colorCluster(int k) {
 
 void ImageProcessor::colorDeconvolution(int channel) {
     ensureImageLoaded();
-    
+
+    std::cout << "DEBUG: colorDeconvolution input - channels=" << currentImage.channels() << std::endl;
+
+    // Color deconvolution only works on 3-channel images
+    if (currentImage.channels() != 3) {
+        std::cout << "WARNING: Color deconvolution requires 3-channel image, current has " << currentImage.channels() << " channels" << std::endl;
+        return;
+    }
+
     std::vector<cv::Mat> channels;
     cv::split(currentImage, channels);
-    
+
     if (channel >= 0 && channel < channels.size()) {
-        cv::Mat result;
-        cv::cvtColor(channels[channel], result, cv::COLOR_GRAY2BGR);
-        currentImage = result;
+        // Extract single channel and keep as grayscale (1-channel)
+        currentImage = channels[channel].clone();
         updateDisplayImage();
-        std::cout << "Applied color deconvolution on channel " << channel << std::endl;
+        std::cout << "Applied color deconvolution on channel " << channel << ", result is grayscale" << std::endl;
     }
 }
 
 void ImageProcessor::channelOperation(const std::string& operation, double value) {
     ensureImageLoaded();
-    
+
+    std::cout << "DEBUG: channelOperation input - channels=" << currentImage.channels() << std::endl;
+
     cv::Mat result;
     if (operation == "add") {
         cv::add(currentImage, cv::Scalar::all(value), result);
@@ -111,10 +139,11 @@ void ImageProcessor::channelOperation(const std::string& operation, double value
     } else {
         result = currentImage.clone();
     }
-    
+
     currentImage = result;
     updateDisplayImage();
-    std::cout << "Applied channel operation: " << operation << " with value " << value << std::endl;
+    std::cout << "Applied channel operation: " << operation << " with value " << value
+              << ", result channels=" << currentImage.channels() << std::endl;
 }
 
 bool ImageProcessor::hasImage() const {
@@ -130,9 +159,18 @@ cv::Size ImageProcessor::getImageSize() const {
 
 void ImageProcessor::updateDisplayImage() {
     if (!currentImage.empty()) {
-        displayImage = currentImage.clone();
-        std::cout << "DEBUG: updateDisplayImage - currentImage size: " << currentImage.cols << "x" << currentImage.rows << std::endl;
-        std::cout << "DEBUG: displayImage updated to size: " << displayImage.cols << "x" << displayImage.rows << std::endl;
+        // Convert to 3-channel for display if needed
+        if (currentImage.channels() == 1) {
+            // 确保使用正确的转换方式，并创建新的Mat对象而不是直接赋值
+            cv::cvtColor(currentImage, displayImage, cv::COLOR_GRAY2BGR);
+        } else {
+            // 使用clone()创建一个深拷贝，避免共享内存
+            displayImage = currentImage.clone();
+        }
+        std::cout << "DEBUG: updateDisplayImage - currentImage size: " << currentImage.cols << "x" << currentImage.rows
+                  << ", channels: " << currentImage.channels() << std::endl;
+        std::cout << "DEBUG: displayImage updated to size: " << displayImage.cols << "x" << displayImage.rows
+                  << ", channels: " << displayImage.channels() << std::endl;
     }
 }
 
@@ -149,20 +187,15 @@ void ImageProcessor::setCurrentImage(const cv::Mat& image) {
 
 void ImageProcessor::applyPreProcessedImage(const cv::Mat& processedImage) {
     if (!processedImage.empty()) {
-        std::cout << "DEBUG: applyPreProcessedImage called with image size: " << processedImage.cols << "x" << processedImage.rows << std::endl;
-        
-        // 确保图像数据类型正确
-        cv::Mat correctedImage;
-        if (processedImage.type() != currentImage.type()) {
-            processedImage.convertTo(correctedImage, currentImage.type());
-            std::cout << "DEBUG: Image type corrected from " << processedImage.type() << " to " << currentImage.type() << std::endl;
-        } else {
-            correctedImage = processedImage.clone();
-        }
-        
-        // 直接替换当前图像
-        currentImage = correctedImage;
-        std::cout << "DEBUG: currentImage directly replaced, calling updateDisplayImage()" << std::endl;
+        std::cout << "DEBUG: applyPreProcessedImage called with image size: " << processedImage.cols << "x" << processedImage.rows
+                  << ", channels: " << processedImage.channels() << std::endl;
+        std::cout << "DEBUG: currentImage before replacement: channels=" << currentImage.channels() << std::endl;
+
+        // 直接使用处理后的图像，不强制类型转换（支持串行流程中的通道变化）
+        currentImage = processedImage.clone();
+
+        std::cout << "DEBUG: currentImage after replacement: channels=" << currentImage.channels() << std::endl;
+        std::cout << "DEBUG: Calling updateDisplayImage()" << std::endl;
         updateDisplayImage();
         std::cout << "DEBUG: applyPreProcessedImage completed" << std::endl;
     } else {
