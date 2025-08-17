@@ -7,73 +7,25 @@ CleanUp::CleanUp() {
 CleanUp::~CleanUp() {
 }
 
-// REJECT类别算法实现
-cv::Mat CleanUp::fillAllHoles(const cv::Mat& image, int minHoleSize, int fillMethod) {
-    cv::Mat result;
+// FILL_HOLES类别算法实现
+cv::Mat CleanUp::fillAllHoles(const cv::Mat& image, int minHoleSize) {
+    CV_Assert(!image.empty());
+    
     cv::Mat binaryImage;
-
     std::cout << "DEBUG: fillAllHoles starting with image size=" << image.size()
-              << ", channels=" << image.channels() << ", minHoleSize=" << minHoleSize
-              << ", fillMethod=" << fillMethod << std::endl;
+              << ", channels=" << image.channels() << ", minHoleSize=" << minHoleSize << std::endl;
 
-    // Use input image directly (assuming it's already processed by Segmentation)
-    if (image.channels() == 1) {
-        binaryImage = image.clone();
-        std::cout << "DEBUG: Using single-channel input image directly" << std::endl;
-    } else if (image.channels() == 3) {
-        // Convert to grayscale but don't threshold (assume it's already processed)
-        cv::cvtColor(image, binaryImage, cv::COLOR_BGR2GRAY);
-        std::cout << "DEBUG: Converted 3-channel to single-channel (no thresholding)" << std::endl;
-    } else {
-        binaryImage = image.clone();
-        std::cout << "DEBUG: Using image as-is" << std::endl;
+    // 确保输入是单通道二值图像
+    if (image.channels() != 1) {
+        std::cout << "DEBUG: Using fillAllHoles must be single-channel" << std::endl;
+        return image.clone();
     }
+    binaryImage = image.clone();
 
-    std::cout << "DEBUG: Binary image created, size=" << binaryImage.size() << std::endl;
+    // 使用改进的孔洞填充方法
+    cv::Mat result = fillHolesByContours(binaryImage, minHoleSize);
 
-    // Apply different fill methods
-    switch (fillMethod) {
-        case 0: // Simple contour-based fill
-            result = findAndFillHoles(binaryImage, minHoleSize);
-            break;
-        case 1: // Morphological fill
-            {
-                result = binaryImage.clone();
-                cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(5, 5));
-                cv::morphologyEx(result, result, cv::MORPH_CLOSE, kernel);
-                // Then apply contour-based fill for remaining holes
-                result = findAndFillHoles(result, minHoleSize);
-            }
-            break;
-        case 2: // Flood fill from borders
-            {
-                result = binaryImage.clone();
-                cv::Mat temp = result.clone();
-
-                // Add border to ensure flood fill works from edges
-                cv::copyMakeBorder(temp, temp, 1, 1, 1, 1, cv::BORDER_CONSTANT, cv::Scalar(0));
-
-                // Flood fill from all border points
-                cv::floodFill(temp, cv::Point(0, 0), cv::Scalar(255));
-
-                // Remove border and invert to get holes
-                cv::Rect roi(1, 1, result.cols, result.rows);
-                temp = temp(roi);
-                cv::bitwise_not(temp, temp);
-
-                // Combine with original to fill holes
-                cv::bitwise_or(result, temp, result);
-            }
-            break;
-        default:
-            result = findAndFillHoles(binaryImage, minHoleSize);
-            break;
-    }
-
-    // Keep result in same format as processing (single channel for binary images)
-
-    std::cout << "DEBUG: fillAllHoles completed, result size=" << result.size()
-              << ", channels=" << result.channels() << std::endl;
+    std::cout << "DEBUG: fillAllHoles completed, result size=" << result.size() << std::endl;
     return result;
 }
 
@@ -146,72 +98,122 @@ cv::Mat CleanUp::rejectFeatures(const cv::Mat& image, int minFeatureSize, int ma
     return result;
 }
 
-// 私有辅助方法实现
-cv::Mat CleanUp::findAndFillHoles(const cv::Mat& image, int minSize) {
-    cv::Mat result = image.clone();
-
-    std::cout << "DEBUG: findAndFillHoles - input image size=" << image.size()
+// 私有辅助方法实现 - 智能孔洞填充方法
+cv::Mat CleanUp::fillHolesByContours(const cv::Mat& image, int minSize) {
+    CV_Assert(image.type() == CV_8UC1);
+    
+    std::cout << "DEBUG: fillHolesByContours - input image size=" << image.size()
               << ", type=" << image.type() << ", minSize=" << minSize << std::endl;
 
-    // Method 1: Use flood fill from borders to find holes
-    cv::Mat temp = result.clone();
-    cv::Mat mask = cv::Mat::zeros(temp.rows + 2, temp.cols + 2, CV_8UC1);
-
-    // Flood fill from all border pixels to mark external background
-    cv::floodFill(temp, mask, cv::Point(0, 0), cv::Scalar(128), 0, cv::Scalar(10), cv::Scalar(10), 4);
-
-    // Find holes (areas that are black but not connected to border)
-    cv::Mat holes;
-    cv::inRange(result, cv::Scalar(0), cv::Scalar(50), holes); // Find black areas
-    cv::Mat external;
-    cv::inRange(temp, cv::Scalar(120), cv::Scalar(135), external); // Find flood-filled areas
-    cv::bitwise_and(holes, ~external, holes); // Holes = black areas NOT connected to border
-
-    // Find contours of holes
+    // 首先确定图像的背景颜色（通过计算平均亮度）
+    cv::Scalar meanVal = cv::mean(image);
+    bool isDarkBackground = (meanVal[0] < 128);
+    std::cout << "DEBUG: Image mean brightness: " << meanVal[0] << ", isDarkBackground: " << isDarkBackground << std::endl;
+    
+    // 创建一个用于处理的副本
+    cv::Mat binaryImage;
+    
+    // 根据背景颜色，可能需要反转图像以确保背景为黑色（这样孔洞就是黑色区域）
+    if (!isDarkBackground) {
+        // 如果背景是亮色的，反转图像使背景变为黑色
+        cv::bitwise_not(image, binaryImage);
+        std::cout << "DEBUG: Image inverted (bright background -> dark background)" << std::endl;
+    } else {
+        binaryImage = image.clone();
+    }
+    
+    // 创建结果图像
+    cv::Mat result;
+    if (!isDarkBackground) {
+        // 如果原始背景是亮色的，结果也应该是亮色背景
+        result = cv::Mat(image.size(), image.type(), cv::Scalar(255));
+    } else {
+        // 如果原始背景是暗色的，结果也应该是暗色背景
+        result = cv::Mat(image.size(), image.type(), cv::Scalar(0));
+    }
+    
+    // 查找轮廓（在黑色背景上的白色对象）
     std::vector<std::vector<cv::Point>> contours;
-    cv::findContours(holes, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
-
-    std::cout << "DEBUG: Found " << contours.size() << " potential holes using flood fill method" << std::endl;
-
+    cv::findContours(binaryImage, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+    
+    std::cout << "DEBUG: Found " << contours.size() << " contours" << std::endl;
+    
     int filledCount = 0;
-    // Fill holes larger than minSize
-    for (size_t i = 0; i < contours.size(); i++) {
+    // 绘制所有大于最小尺寸的轮廓
+    for (int i = 0; i < contours.size(); i++) {
         double area = cv::contourArea(contours[i]);
         if (area >= minSize) {
-            // Fill the hole by drawing white on the original image
-            cv::drawContours(result, contours, (int)i, cv::Scalar(255), -1);
+            // 根据原始背景颜色决定填充颜色
+            cv::Scalar fillColor = isDarkBackground ? cv::Scalar(255) : cv::Scalar(0);
+            cv::drawContours(result, contours, i, fillColor, cv::FILLED);
             filledCount++;
-            std::cout << "DEBUG: Filled hole " << i << " with area=" << area << std::endl;
-        } else {
-            std::cout << "DEBUG: Skipped small hole " << i << " with area=" << area << " (< " << minSize << ")" << std::endl;
         }
     }
-
-    std::cout << "DEBUG: Filled " << filledCount << " holes out of " << contours.size() << " candidates" << std::endl;
+    
+    // 如果需要，反转结果以匹配原始图像的背景
+    if (!isDarkBackground) {
+        cv::bitwise_not(result, result);
+    }
+    
+    std::cout << "DEBUG: Filled " << filledCount << " objects out of " << contours.size() << " contours" << std::endl;
     return result;
 }
 
 cv::Mat CleanUp::rejectFeaturesBySize(const cv::Mat& image, int minSize, int maxSize) {
-    cv::Mat result = cv::Mat::zeros(image.size(), CV_8UC1);
+    CV_Assert(image.type() == CV_8UC1);
+    
+    // 首先确定图像的背景颜色（通过计算平均亮度）
+    cv::Scalar meanVal = cv::mean(image);
+    bool isDarkBackground = (meanVal[0] < 128);
+    std::cout << "DEBUG: Image mean brightness: " << meanVal[0] << ", isDarkBackground: " << isDarkBackground << std::endl;
+    
+    // 创建一个用于处理的副本
+    cv::Mat binaryImage;
+    
+    // 根据背景颜色，可能需要反转图像以确保背景为黑色（这样对象就是白色区域）
+    if (!isDarkBackground) {
+        // 如果背景是亮色的，反转图像使背景变为黑色
+        cv::bitwise_not(image, binaryImage);
+        std::cout << "DEBUG: Image inverted for processing (bright background -> dark background)" << std::endl;
+    } else {
+        binaryImage = image.clone();
+    }
+    
+    // 创建结果图像（与原始背景颜色相同）
+    cv::Mat result;
+    if (!isDarkBackground) {
+        // 如果原始背景是亮色的，结果也应该是亮色背景
+        result = cv::Mat(image.size(), image.type(), cv::Scalar(255));
+    } else {
+        // 如果原始背景是暗色的，结果也应该是暗色背景
+        result = cv::Mat(image.size(), image.type(), cv::Scalar(0));
+    }
 
-    // Find contours
+    // 查找轮廓（在黑色背景上的白色对象）
     std::vector<std::vector<cv::Point>> contours;
-    cv::findContours(image, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+    cv::findContours(binaryImage, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
 
     std::cout << "DEBUG: rejectFeaturesBySize - found " << contours.size() << " features" << std::endl;
     std::cout << "DEBUG: Size range: " << minSize << " - " << maxSize << std::endl;
 
     int acceptedCount = 0;
-    // Keep only features within size range
+    // 保留符合大小范围的轮廓
     for (size_t i = 0; i < contours.size(); i++) {
         double area = cv::contourArea(contours[i]);
         if (area >= minSize && area <= maxSize) {
-            cv::drawContours(result, contours, (int)i, cv::Scalar(255), -1);
+            // 根据原始背景颜色决定填充颜色
+            cv::Scalar fillColor = isDarkBackground ? cv::Scalar(255) : cv::Scalar(0);
+            cv::drawContours(result, contours, (int)i, fillColor, -1);
             acceptedCount++;
             std::cout << "DEBUG: Accepted feature " << i << " with area=" << area << std::endl;
         } else {
             std::cout << "DEBUG: Rejected feature " << i << " with area=" << area << std::endl;
         }
+    }
+    
+    // 如果需要，反转结果以匹配原始图像的背景
+    if (!isDarkBackground) {
+        cv::bitwise_not(result, result);
     }
 
     std::cout << "DEBUG: Accepted " << acceptedCount << " features out of " << contours.size() << std::endl;
@@ -223,8 +225,7 @@ cv::Mat CleanUp::applyFunction(const cv::Mat& image, CleanUpFunction function, c
     switch (function) {
         case CleanUpFunction::FILL_ALL_HOLES:
             return fillAllHoles(image, 
-                              params.size() > 0 ? (int)params[0] : 50, 
-                              params.size() > 1 ? (int)params[1] : 0);
+                              params.size() > 0 ? (int)params[0] : 50);
         case CleanUpFunction::REJECT_FEATURES:
             return rejectFeatures(image, 
                                 params.size() > 0 ? (int)params[0] : 10, 

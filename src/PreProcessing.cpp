@@ -18,35 +18,14 @@ cv::Mat PreProcessing::adjustContrast(const cv::Mat& image, double brightness, d
 
 cv::Mat PreProcessing::histogramEqualization(const cv::Mat& image, int method, double clipLimit) {
     cv::Mat result;
-    
     if (method == 0) {
         // Global histogram equalization
-        if (image.channels() == 1) {
-            cv::equalizeHist(image, result);
-        } else {
-            cv::Mat ycrcb;
-            cv::cvtColor(image, ycrcb, cv::COLOR_BGR2YCrCb);
-            std::vector<cv::Mat> channels;
-            cv::split(ycrcb, channels);
-            cv::equalizeHist(channels[0], channels[0]);
-            cv::merge(channels, ycrcb);
-            cv::cvtColor(ycrcb, result, cv::COLOR_YCrCb2BGR);
-        }
+        cv::equalizeHist(image, result);
     } else {
         // Adaptive histogram equalization (CLAHE)
         cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(clipLimit, cv::Size(8, 8));
         
-        if (image.channels() == 1) {
-            clahe->apply(image, result);
-        } else {
-            cv::Mat ycrcb;
-            cv::cvtColor(image, ycrcb, cv::COLOR_BGR2YCrCb);
-            std::vector<cv::Mat> channels;
-            cv::split(ycrcb, channels);
-            clahe->apply(channels[0], channels[0]);
-            cv::merge(channels, ycrcb);
-            cv::cvtColor(ycrcb, result, cv::COLOR_YCrCb2BGR);
-        }
+        clahe->apply(image, result);
     }
     return result;
 }
@@ -74,11 +53,7 @@ cv::Mat PreProcessing::wienerFilter(const cv::Mat& image, int kernelSize) {
 
 cv::Mat PreProcessing::nonLocalMeans(const cv::Mat& image, double h, int templateWindowSize, int searchWindowSize) {
     cv::Mat result;
-    if (image.channels() == 1) {
-        cv::fastNlMeansDenoising(image, result, h, templateWindowSize, searchWindowSize);
-    } else {
-        cv::fastNlMeansDenoisingColored(image, result, h, h, templateWindowSize, searchWindowSize);
-    }
+    cv::fastNlMeansDenoising(image, result, h, templateWindowSize, searchWindowSize);
     return result;
 }
 
@@ -149,20 +124,12 @@ cv::Mat PreProcessing::gradientFilter(const cv::Mat& image) {
 cv::Mat PreProcessing::highlightLines(const cv::Mat& image) {
     cv::Mat result;
     cv::Mat gray;
-    if (image.channels() == 3) {
-        cv::cvtColor(image, gray, cv::COLOR_BGR2GRAY);
-    } else {
-        gray = image.clone();
-    }
+    gray = image.clone();
 
     cv::Mat edges;
     cv::Canny(gray, edges, 50, 150);
 
-    if (image.channels() == 3) {
-        cv::cvtColor(edges, result, cv::COLOR_GRAY2BGR);
-    } else {
-        result = edges;
-    }
+    result = edges;
     return result;
 }
 
@@ -237,6 +204,10 @@ cv::Mat PreProcessing::grayscaleReconstruction(const cv::Mat& image) {
 
 // 统一的应用函数
 cv::Mat PreProcessing::applyFunction(const cv::Mat& image, PreProcessingFunction function, const std::vector<double>& params) {
+    if (image.channels() != 1) {
+        std::cout << "DEBUG: PreProcessing applyFunction must be single-channel" << std::endl;
+        return image.clone();
+    }
     switch (function) {
         case PreProcessingFunction::ADJUST_CONTRAST:
             return adjustContrast(image, params.size() > 0 ? params[0] : 0.0, params.size() > 1 ? params[1] : 1.0);

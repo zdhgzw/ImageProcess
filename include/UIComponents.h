@@ -138,6 +138,13 @@ public:
                                           double& thresholdValue, int& thresholdType,
                                           double& thresholdMin, double& thresholdMax,
                                           int& adaptiveMethod, int& blockSize, double& C);
+    
+    /**
+     * @brief 获取分水岭算法的当前参数
+     * @param distanceThreshold 输出距离阈值
+     * @param minArea 输出最小面积
+     */
+    static void getWatershedParameters(double& distanceThreshold, int& minArea);
 
     // Morphology UI methods
     static MorphologyFunction renderMorphologyFunctionSelection(cv::Mat& frame, int controlAreaX, int controlAreaY);
@@ -150,7 +157,7 @@ public:
     static CleanUpFunction renderCleanUpFunctionSelection(cv::Mat& frame, int controlAreaX, int controlAreaY);
     static int renderCleanUpParameters(cv::Mat& frame, int controlAreaX, int controlAreaY,
                                      CleanUpFunction currentFunction,
-                                     int& minHoleSize, int& fillMethod,
+                                     int& minHoleSize,
                                      int& minFeatureSize, int& maxFeatureSize, int& rejectMethod);
 
     // Measurements UI methods

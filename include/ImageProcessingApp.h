@@ -131,7 +131,6 @@ private:
 
     // 清理参数
     int minHoleSize;              // 最小孔洞大小 (1-500)
-    int fillMethod;               // 填充方法 (0=Simple, 1=Morphological, 2=Flood)
     int minFeatureSize;           // 最小特征大小 (1-1000)
     int maxFeatureSize;           // 最大特征大小 (100-5000)
     int rejectMethod;             // 拒绝方法 (0=Size-based, 1=Area+Morphology, 2=Contour-based)
@@ -240,7 +239,6 @@ private:
     cv::Mat applyErodeUniform(const cv::Mat& image, int kernelSize, int kernelType);
     cv::Mat applyErodeSmart(const cv::Mat& image, int kernelSize, int kernelType, double threshold);
     cv::Mat applyErodeRetain(const cv::Mat& image, int kernelSize, int kernelType);
-    cv::Mat applySeparateFeatures(const cv::Mat& image);
     
     /**
      * @brief 打开文件对话框

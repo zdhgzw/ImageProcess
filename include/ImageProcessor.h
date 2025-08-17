@@ -49,6 +49,12 @@ public:
     const cv::Mat& getDisplayImage() const;
 
     /**
+     * @brief 获取原始图像
+     * @return 原始图像的引用
+     */
+    const cv::Mat& getOriginalImage() const;
+
+    /**
      * @brief 转换为灰度图像
      */
     void convertToGrayscale();

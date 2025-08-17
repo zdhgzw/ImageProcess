@@ -29,7 +29,7 @@ public:
     ~CleanUp();
 
     // REJECT类别算法
-    static cv::Mat fillAllHoles(const cv::Mat& image, int minHoleSize, int fillMethod);
+    static cv::Mat fillAllHoles(const cv::Mat& image, int minHoleSize);
     static cv::Mat rejectFeatures(const cv::Mat& image, int minFeatureSize, int maxFeatureSize, int rejectMethod);
 
     /**
@@ -43,12 +43,12 @@ public:
 
 private:
     /**
-     * @brief 查找并填充孔洞
+     * @brief 基于轮廓填充孔洞
      * @param image 输入图像
      * @param minSize 最小孔洞大小
      * @return 填充后的图像
      */
-    static cv::Mat findAndFillHoles(const cv::Mat& image, int minSize);
+    static cv::Mat fillHolesByContours(const cv::Mat& image, int minSize);
     
     /**
      * @brief 基于大小拒绝特征

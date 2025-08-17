@@ -2,6 +2,8 @@
 
 A comprehensive image processing application built with C++ and OpenCV, featuring an intuitive GUI powered by cvui. This modular application provides professional-grade image processing capabilities with real-time preview and parameter adjustment.
 
+**注意：图像处理必须是串行流程，即从Load Image->Convert to Grayscale后，所以操作的输出都是下一次操作的输入，所以之后的操作都应该在灰度图上。只有Reset Image会重置图像。**
+
 ## Features
 
 ### 1. Image Loading and Display

@@ -43,7 +43,6 @@ public:
     static cv::Mat gradient(const cv::Mat& image, int kernelSize, int kernelType);
     static cv::Mat topHat(const cv::Mat& image, int kernelSize, int kernelType);
     static cv::Mat blackHat(const cv::Mat& image, int kernelSize, int kernelType);
-    static cv::Mat separateFeatures(const cv::Mat& image, double edgeThreshold, int separationMethod, int kernelSize);
 
     /**
      * @brief 应用形态学功能

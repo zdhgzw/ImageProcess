@@ -2,6 +2,9 @@
 #include <cvui.h>
 #include <iostream>
 
+// 全局分水岭参数（用于参数传递）
+static double g_watershedDistanceThreshold = 0.3;  // 距离变换阈值
+
 UIComponents::UIComponents() {
 }
 
@@ -324,13 +327,22 @@ SegmentationFunction UIComponents::renderSegmentationFunctionSelection(cv::Mat& 
     if (cvui::button(frame, controlAreaX, currentY, 100, 25, "Adaptive Threshold", 0.3)) {
         return SegmentationFunction::ADAPTIVE_THRESHOLD;
     }
-    if (cvui::button(frame, controlAreaX + 110, currentY, 100, 25, "EM Threshold", 0.3)) {
-        return SegmentationFunction::EM_THRESHOLD;
+    if (cvui::button(frame, controlAreaX + 110, currentY, 100, 25, "OTSU Threshold", 0.3)) {
+        return SegmentationFunction::OTSU_THRESHOLD;
     }
     currentY += 30;
 
     if (cvui::button(frame, controlAreaX, currentY, 100, 25, "Local Threshold", 0.3)) {
         return SegmentationFunction::LOCAL_THRESHOLD;
+    }
+    currentY += 40;
+    
+    // EDGES (边界识别)
+    cvui::text(frame, controlAreaX, currentY, "EDGES:", 0.35);
+    currentY += 25;
+    
+    if (cvui::button(frame, controlAreaX, currentY, 100, 25, "Watershed", 0.3)) {
+        return SegmentationFunction::WATERSHED;
     }
 
     return SegmentationFunction::NONE;
@@ -341,11 +353,24 @@ int UIComponents::renderSegmentationParameters(cv::Mat& frame, int controlAreaX,
                                              double& thresholdValue, int& thresholdType,
                                              double& thresholdMin, double& thresholdMax,
                                              int& adaptiveMethod, int& blockSize, double& C) {
+    // 保存先前的参数值用于检测变化
+    static double prevThresholdValue = thresholdValue;
+    static int prevThresholdType = thresholdType;
+    static double prevThresholdMin = thresholdMin;
+    static double prevThresholdMax = thresholdMax;
+    static int prevAdaptiveMethod = adaptiveMethod;
+    static int prevBlockSize = blockSize;
+    static double prevC = C;
+    // 分水岭算法参数
+    static double markerThreshold = 0.5;  // 修正初始值
+    static int minArea = 100;
+    static double prevMarkerThreshold = markerThreshold;
+    static int prevMinArea = minArea;
     int currentY = controlAreaY;
 
     // 显示当前选择的功能名称和返回按钮
     const char* functionNames[] = {
-        "Basic Threshold", "Range Threshold", "Adaptive Threshold", "EM Threshold", "Local Threshold"
+        "Basic Threshold", "Range Threshold", "Adaptive Threshold", "OTSU Threshold", "Local Threshold", "Watershed"
     };
 
     cvui::text(frame, controlAreaX, currentY, functionNames[(int)currentFunction], 0.4);
@@ -366,6 +391,12 @@ int UIComponents::renderSegmentationParameters(cv::Mat& frame, int controlAreaX,
             cvui::text(frame, controlAreaX + 210, currentY + 8, ("Value: " + std::to_string((int)thresholdValue)).c_str(), 0.3);
             currentY += 40;
 
+            // 检测阈值变化
+            if (thresholdValue != prevThresholdValue) {
+                needsUpdate = true;
+                prevThresholdValue = thresholdValue;
+            }
+
             cvui::text(frame, controlAreaX, currentY, "Threshold Type:", 0.35);
             currentY += 25;
             if (cvui::button(frame, controlAreaX, currentY, 100, 25, "Binary", 0.3)) {
@@ -383,6 +414,12 @@ int UIComponents::renderSegmentationParameters(cv::Mat& frame, int controlAreaX,
             if (thresholdType == 1) {
                 cvui::text(frame, controlAreaX + 110, currentY + 8, "<- Selected", 0.25);
             }
+
+            // 检测阈值类型变化
+            if (thresholdType != prevThresholdType) {
+                needsUpdate = true;
+                prevThresholdType = thresholdType;
+            }
             break;
 
         case SegmentationFunction::RANGE_THRESHOLD:
@@ -392,10 +429,22 @@ int UIComponents::renderSegmentationParameters(cv::Mat& frame, int controlAreaX,
             cvui::text(frame, controlAreaX + 210, currentY + 8, ("Min: " + std::to_string((int)thresholdMin)).c_str(), 0.3);
             currentY += 40;
 
+            // 检测最小阈值变化
+            if (thresholdMin != prevThresholdMin) {
+                needsUpdate = true;
+                prevThresholdMin = thresholdMin;
+            }
+
             cvui::text(frame, controlAreaX, currentY, "Maximum Value:", 0.35);
             currentY += 20;
             cvui::trackbar(frame, controlAreaX, currentY, 200, &thresholdMax, 0.0, 255.0);
             cvui::text(frame, controlAreaX + 210, currentY + 8, ("Max: " + std::to_string((int)thresholdMax)).c_str(), 0.3);
+            
+            // 检测最大阈值变化
+            if (thresholdMax != prevThresholdMax) {
+                needsUpdate = true;
+                prevThresholdMax = thresholdMax;
+            }
             break;
 
         case SegmentationFunction::ADAPTIVE_THRESHOLD:
@@ -418,6 +467,12 @@ int UIComponents::renderSegmentationParameters(cv::Mat& frame, int controlAreaX,
             }
             currentY += 40;
 
+            // 检测自适应方法变化
+            if (adaptiveMethod != prevAdaptiveMethod) {
+                needsUpdate = true;
+                prevAdaptiveMethod = adaptiveMethod;
+            }
+
             cvui::text(frame, controlAreaX, currentY, "Block Size:", 0.35);
             currentY += 20;
             cvui::trackbar(frame, controlAreaX, currentY, 200, &blockSize, 3, 31);
@@ -426,10 +481,46 @@ int UIComponents::renderSegmentationParameters(cv::Mat& frame, int controlAreaX,
             cvui::text(frame, controlAreaX + 210, currentY + 8, ("Size: " + std::to_string(blockSize)).c_str(), 0.3);
             currentY += 40;
 
+            // 检测块大小变化
+            if (blockSize != prevBlockSize) {
+                needsUpdate = true;
+                prevBlockSize = blockSize;
+            }
+
             cvui::text(frame, controlAreaX, currentY, "C Value:", 0.35);
             currentY += 20;
             cvui::trackbar(frame, controlAreaX, currentY, 200, &C, -10.0, 10.0);
             cvui::text(frame, controlAreaX + 210, currentY + 8, ("C: " + std::to_string(C).substr(0, 4)).c_str(), 0.3);
+            
+            // 检测C值变化
+            if (C != prevC) {
+                needsUpdate = true;
+                prevC = C;
+            }
+            break;
+            
+        case SegmentationFunction::WATERSHED:
+            cvui::text(frame, controlAreaX, currentY, "Distance Threshold:", 0.35);
+            currentY += 20;
+            cvui::trackbar(frame, controlAreaX, currentY, 200, &g_watershedDistanceThreshold, 0.1, 0.9);
+            cvui::text(frame, controlAreaX + 210, currentY + 8, ("Value: " + std::to_string(g_watershedDistanceThreshold).substr(0, 4)).c_str(), 0.3);
+            currentY += 40;
+
+            // 检测距离阈值变化
+            if (g_watershedDistanceThreshold != prevMarkerThreshold) {
+                needsUpdate = true;
+                prevMarkerThreshold = g_watershedDistanceThreshold;
+            }
+
+            cvui::text(frame, controlAreaX, currentY, "Algorithm: Watershed segmentation", 0.3);
+            currentY += 20;
+            cvui::text(frame, controlAreaX, currentY, "Input: Preprocessed grayscale image", 0.3);
+            currentY += 20;
+            cvui::text(frame, controlAreaX, currentY, "Output: Red boundary markers on result", 0.3);
+            currentY += 20;
+            cvui::text(frame, controlAreaX, currentY, "Visualization: Process steps shown on preview", 0.3);
+            currentY += 20;
+            cvui::text(frame, controlAreaX, currentY, ("Current threshold: " + std::to_string(g_watershedDistanceThreshold).substr(0, 4)).c_str(), 0.25);
             break;
 
         default:
@@ -443,6 +534,12 @@ int UIComponents::renderSegmentationParameters(cv::Mat& frame, int controlAreaX,
     }
 
     return needsUpdate ? 2 : 0; // 2 = update preview, 0 = no action
+}
+
+void UIComponents::getWatershedParameters(double& distanceThreshold, int& minArea) {
+    // 返回全局分水岭参数
+    distanceThreshold = g_watershedDistanceThreshold;
+    minArea = 0; // minArea参数已移除，保持兼容性
 }
 
 // Morphology UI methods implementation
@@ -601,8 +698,13 @@ CleanUpFunction UIComponents::renderCleanUpFunctionSelection(cv::Mat& frame, int
 
 int UIComponents::renderCleanUpParameters(cv::Mat& frame, int controlAreaX, int controlAreaY,
                                         CleanUpFunction currentFunction,
-                                        int& minHoleSize, int& fillMethod,
+                                        int& minHoleSize,
                                         int& minFeatureSize, int& maxFeatureSize, int& rejectMethod) {
+    // 保存先前的参数值用于检测变化
+    static int prevMinHoleSize = minHoleSize;
+    static int prevMinFeatureSize = minFeatureSize;
+    static int prevMaxFeatureSize = maxFeatureSize;
+    static int prevRejectMethod = rejectMethod;
     int currentY = controlAreaY;
 
     // 显示当前选择的功能名称和返回按钮
@@ -629,22 +731,15 @@ int UIComponents::renderCleanUpParameters(cv::Mat& frame, int controlAreaX, int 
                 cvui::text(frame, controlAreaX + 210, currentY + 8, ("Size: " + std::to_string(minHoleSize)).c_str(), 0.3);
                 currentY += 40;
 
-                cvui::text(frame, controlAreaX, currentY, "Fill Method:", 0.35);
-                currentY += 25;
-
-                const char* fillMethods[] = {"Simple Fill", "Morphological Fill", "Flood Fill"};
-                for (int i = 0; i < 3; i++) {
-                    if (cvui::button(frame, controlAreaX, currentY + i * 30, 120, 25, fillMethods[i], 0.3)) {
-                        fillMethod = i;
-                        needsUpdate = true;
-                    }
-                    if (fillMethod == i) {
-                        cvui::text(frame, controlAreaX + 130, currentY + i * 30 + 8, "<- Selected", 0.25);
-                    }
+                // 检测最小孔洞大小变化
+                if (minHoleSize != prevMinHoleSize) {
+                    // needsUpdate = true;
+                    prevMinHoleSize = minHoleSize;
                 }
-                currentY += 100;
 
-                cvui::text(frame, controlAreaX, currentY, ("Method: " + std::string(fillMethods[fillMethod])).c_str(), 0.3);
+                cvui::text(frame, controlAreaX, currentY, "Method: Contour-based Fill", 0.3);
+                cvui::text(frame, controlAreaX, currentY + 15, "Fills holes by detecting external contours", 0.25);
+                currentY += 40;
             }
             break;
 
@@ -656,11 +751,23 @@ int UIComponents::renderCleanUpParameters(cv::Mat& frame, int controlAreaX, int 
                 cvui::text(frame, controlAreaX + 210, currentY + 8, ("Min: " + std::to_string(minFeatureSize)).c_str(), 0.3);
                 currentY += 40;
 
+                // 检测最小特征大小变化
+                if (minFeatureSize != prevMinFeatureSize) {
+                    needsUpdate = true;
+                    prevMinFeatureSize = minFeatureSize;
+                }
+
                 cvui::text(frame, controlAreaX, currentY, "Maximum Feature Size:", 0.35);
                 currentY += 20;
-                cvui::trackbar(frame, controlAreaX, currentY, 200, &maxFeatureSize, 100, 5000);
+                cvui::trackbar(frame, controlAreaX, currentY, 200, &maxFeatureSize, 100, 50000);
                 cvui::text(frame, controlAreaX + 210, currentY + 8, ("Max: " + std::to_string(maxFeatureSize)).c_str(), 0.3);
                 currentY += 40;
+
+                // 检测最大特征大小变化
+                if (maxFeatureSize != prevMaxFeatureSize) {
+                    needsUpdate = true;
+                    prevMaxFeatureSize = maxFeatureSize;
+                }
 
                 cvui::text(frame, controlAreaX, currentY, "Reject Method:", 0.35);
                 currentY += 25;
@@ -676,6 +783,12 @@ int UIComponents::renderCleanUpParameters(cv::Mat& frame, int controlAreaX, int 
                     }
                 }
                 currentY += 100;
+
+                // 检测拒绝方法变化
+                if (rejectMethod != prevRejectMethod) {
+                    needsUpdate = true;
+                    prevRejectMethod = rejectMethod;
+                }
 
                 cvui::text(frame, controlAreaX, currentY, ("Method: " + std::string(rejectMethods[rejectMethod])).c_str(), 0.3);
             }

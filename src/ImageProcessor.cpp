@@ -43,6 +43,10 @@ const cv::Mat& ImageProcessor::getDisplayImage() const {
     return displayImage;
 }
 
+const cv::Mat& ImageProcessor::getOriginalImage() const {
+    return originalImage;
+}
+
 void ImageProcessor::convertToGrayscale() {
     ensureImageLoaded();
 

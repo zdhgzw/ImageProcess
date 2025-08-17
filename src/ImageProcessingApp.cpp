@@ -58,9 +58,8 @@ ImageProcessingApp::ImageProcessingApp() : windowName("Image Processing Applicat
 
     // 清理参数
     minHoleSize = 50;
-    fillMethod = 0;
     minFeatureSize = 10;
-    maxFeatureSize = 1000;
+    maxFeatureSize = 10000;
     rejectMethod = 0;
 
     // 测量参数
@@ -754,9 +753,24 @@ void ImageProcessingApp::applySegmentationFunction(SegmentationFunction function
                 result = Segmentation::applyFunction(currentImage, function, params);
                 std::cout << "Applied adaptive threshold: method=" << adaptiveMethod << ", blockSize=" << blockSize << ", C=" << C << std::endl;
                 break;
-            default:
+            case SegmentationFunction::WATERSHED: {
+                // 从UI组件获取当前参数值
+                double distThreshold;
+                int minAreaParam;
+                UIComponents::getWatershedParameters(distThreshold, minAreaParam);
+                // 直接调用watershed函数，传入原始图像
+                result = Segmentation::watershed(currentImage, processor.getOriginalImage(), distThreshold, false);
+                std::cout << "Applied watershed: distanceThreshold=" << distThreshold << std::endl;
+                break;
+            }
+            case SegmentationFunction::OTSU_THRESHOLD:
+            case SegmentationFunction::LOCAL_THRESHOLD:
                 result = Segmentation::applyFunction(currentImage, function, {});
                 std::cout << "Applied segmentation function: " << (int)function << std::endl;
+                break;
+            default:
+                std::cout << "ERROR: Unknown segmentation function: " << (int)function << std::endl;
+                result = currentImage.clone();
                 break;
         }
 
@@ -792,8 +806,22 @@ void ImageProcessingApp::updateSegmentationPreview(SegmentationFunction function
                 params = {(double)adaptiveMethod, (double)thresholdType, (double)blockSize, C};
                 tempImage = Segmentation::applyFunction(tempImage, function, params);
                 break;
-            default:
+            case SegmentationFunction::WATERSHED: {
+                // 从UI组件获取当前参数值
+                double distThreshold;
+                int minAreaParam;
+                UIComponents::getWatershedParameters(distThreshold, minAreaParam);
+                // 直接调用watershed函数，传入原始图像，显示可视化
+                tempImage = Segmentation::watershed(tempImage, processor.getOriginalImage(), distThreshold, true);
+                break;
+            }
+            case SegmentationFunction::OTSU_THRESHOLD:
+            case SegmentationFunction::LOCAL_THRESHOLD:
                 tempImage = Segmentation::applyFunction(tempImage, function, {});
+                break;
+            default:
+                std::cout << "ERROR: Unknown segmentation function in preview: " << (int)function << std::endl;
+                tempImage = tempImage.clone();
                 break;
         }
 
@@ -869,9 +897,9 @@ void ImageProcessingApp::applyCleanUpFunction(CleanUpFunction function) {
 
         switch (function) {
             case CleanUpFunction::FILL_ALL_HOLES:
-                params = {(double)minHoleSize, (double)fillMethod};
+                params = {(double)minHoleSize};
                 result = CleanUp::applyFunction(currentImage, function, params);
-                std::cout << "Applied fill all holes: minHoleSize=" << minHoleSize << ", fillMethod=" << fillMethod << std::endl;
+                std::cout << "Applied fill all holes: minHoleSize=" << minHoleSize << std::endl;
                 break;
             case CleanUpFunction::REJECT_FEATURES:
                 params = {(double)minFeatureSize, (double)maxFeatureSize, (double)rejectMethod};
@@ -906,7 +934,7 @@ void ImageProcessingApp::updateCleanUpPreview(CleanUpFunction function) {
 
         switch (function) {
             case CleanUpFunction::FILL_ALL_HOLES:
-                params = {(double)minHoleSize, (double)fillMethod};
+                params = {(double)minHoleSize};
                 tempImage = CleanUp::applyFunction(tempImage, function, params);
                 break;
             case CleanUpFunction::REJECT_FEATURES:
@@ -1238,6 +1266,9 @@ void ImageProcessingApp::renderSegmentationModal() {
                     blockSize = 11;
                     C = 2.0;
                     break;
+                case SegmentationFunction::WATERSHED:
+                    // 分水岭参数已在UIComponents中初始化
+                    break;
                 default:
                     break;
             }
@@ -1345,7 +1376,6 @@ void ImageProcessingApp::renderCleanUpModal() {
             switch (selectedFunction) {
                 case CleanUpFunction::FILL_ALL_HOLES:
                     minHoleSize = 50;
-                    fillMethod = 0;
                     break;
                 case CleanUpFunction::REJECT_FEATURES:
                     minFeatureSize = 10;
@@ -1361,7 +1391,7 @@ void ImageProcessingApp::renderCleanUpModal() {
     } else {
         // 参数控制界面
         int result = UIComponents::renderCleanUpParameters(frame, controlAreaX, controlAreaY, currentCleanUpFunction,
-                                                         minHoleSize, fillMethod, minFeatureSize, maxFeatureSize, rejectMethod);
+                                                         minHoleSize, minFeatureSize, maxFeatureSize, rejectMethod);
 
         if (result == 1) {
             // Back button clicked
