@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Image Processing App
+Comment=OpenCV-based Image Processing Application
+Exec=@CMAKE_BINARY_DIR@/bin/ImageProcessingApp
+Icon=applications-graphics
+Terminal=false
+Categories=Graphics;Photography;
+Keywords=image;processing;opencv;computer-vision;

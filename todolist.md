@@ -345,6 +345,18 @@ Intensity Mean, Intensity StdDev, Nearest Distance 等测量值含义可参见�
      - 直接调用优化: 在ImageProcessingApp中直接调用watershed而非通过applyFunction
      - 可视化更新: 步骤1显示原始图像，步骤2显示输入的预处理二值图像
 
+11. **跨平台构建支持** (2025-01-15) - 添加Windows和Linux跨平台构建支持
+   - 问题分析: 当前代码只支持Windows系统构建，需要支持Linux和macOS
+   - 实现方案:
+     - 修改CMakeLists.txt支持跨平台编译器和库检测
+     - 添加平台特定的库链接 (Windows: comdlg32, Linux: X11/GTK3, macOS: Cocoa)
+     - 创建跨平台构建脚本 (build.sh for Unix, build.bat for Windows)
+     - 添加自动OpenCV检测 (pkg-config for Linux, Homebrew for macOS, 默认路径 for Windows)
+     - 创建GitHub Actions工作流进行自动化跨平台测试
+     - 添加安装规则和桌面入口文件 (Linux)
+     - 创建详细的跨平台构建文档 (BUILD.md)
+     - 添加构建测试脚本 (test_build.sh)
+
 ### 测试验证
 - 创建了 `test_cleanup_functions.md` 测试指南
 - 创建了 `serial_workflow_test.md` 串行流程测试指南
@@ -353,8 +365,13 @@ Intensity Mean, Intensity StdDev, Nearest Distance 等测量值含义可参见�
 - 创建了 `corrected_watershed_test.md` 修正后分水岭算法测试指南
 - 创建了 `final_watershed_test.md` 最终修复的分水岭分割测试指南
 - 创建了 `serial_watershed_test.md` 串行流程分水岭分割测试指南
+- 创建了 `BUILD.md` 详细的跨平台构建指南
+- 创建了 `build.sh` 和 `build.bat` 跨平台构建脚本
+- 创建了 `test_build.sh` 构建验证脚本
+- 创建了 `.github/workflows/build.yml` GitHub Actions自动化测试
 - 所有Clean-Up功能现在应该正常工作
 - 灰度转换现在正确保持单通道格式
 - 串行工作流程现在完全符合设计要求
 - copyTo错误已彻底解决，支持完整的灰度工作流程
 - 分水岭分割算法现在完全符合OpenCV标准实现和软件串行流程设计，包含完整的8步骤可视化，正确的使用时机和参数控制
+- 项目现在支持Windows、Linux和macOS跨平台构建，包含自动化测试和详细的构建文档

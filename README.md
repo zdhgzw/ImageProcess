@@ -2,7 +2,30 @@
 
 A comprehensive image processing application built with C++ and OpenCV, featuring an intuitive GUI powered by cvui. This modular application provides professional-grade image processing capabilities with real-time preview and parameter adjustment.
 
-**注意：图像处理必须是串行流程，即从Load Image->Convert to Grayscale后，所以操作的输出都是下一次操作的输入，所以之后的操作都应该在灰度图上。只有Reset Image会重置图像。**
+## Platform Support
+
+✅ **Windows** (MinGW-w64, MSVC)
+✅ **Linux** (Ubuntu, Debian, CentOS, Arch Linux, etc.)
+✅ **macOS** (experimental support)
+
+## Quick Start
+
+### Windows
+```cmd
+build.bat release
+.\build\bin\ImageProcessingApp.exe
+```
+
+### Linux/macOS
+```bash
+chmod +x build.sh
+./build.sh release
+./build/bin/ImageProcessingApp
+```
+
+For detailed build instructions, see [BUILD.md](BUILD.md).
+
+**注意：图像处理必须是串行流程，即从Load Image->Convert to Grayscale后，所有操作的输出都是下一次操作的输入，所以之后的操作都应该在灰度图上。只有Reset Image会重置图像。**
 
 ## Features
 
@@ -271,6 +294,59 @@ image_process_with_opencv/
 - **Exception Safety**: Comprehensive error handling
 - **Documentation**: Extensive inline documentation and comments
 
+## Building and Installation
+
+### Prerequisites
+
+**All Platforms:**
+- CMake 3.10+
+- C++17 compatible compiler
+- OpenCV 4.x (recommended) or 3.x
+
+**Platform-specific requirements:**
+- **Windows**: MinGW-w64 or Visual Studio 2017+
+- **Linux**: GCC/Clang, X11 development libraries
+- **macOS**: Xcode command line tools
+
+### Quick Build
+
+**Windows:**
+```cmd
+build.bat release
+```
+
+**Linux/macOS:**
+```bash
+chmod +x build.sh
+./build.sh release
+```
+
+### Manual Build
+
+```bash
+mkdir build && cd build
+cmake -DCMAKE_BUILD_TYPE=Release ..
+make -j$(nproc)  # Linux/macOS
+# or
+mingw32-make -j%NUMBER_OF_PROCESSORS%  # Windows MinGW
+```
+
+### Installation (Linux)
+
+```bash
+cd build
+sudo make install
+```
+
+For detailed build instructions, troubleshooting, and platform-specific notes, see [BUILD.md](BUILD.md).
+
+### Testing the Build
+
+```bash
+chmod +x test_build.sh
+./test_build.sh
+```
+
 ## Notes
 
 - All processing operations work on the current image state
@@ -281,3 +357,4 @@ image_process_with_opencv/
 - Consistent interaction pattern across all functions
 - Easily extensible architecture for adding new processing capabilities
 - Professional-grade algorithms suitable for research and industrial applications
+- Cross-platform compatibility ensures consistent behavior across Windows, Linux, and macOS
