@@ -357,18 +357,7 @@ Intensity Mean, Intensity StdDev, Nearest Distance 等测量值含义可参见�
      - 创建详细的跨平台构建文档 (BUILD.md)
      - 添加构建测试脚本 (test_build.sh)
 
-### 测试验证
-- 创建了 `test_cleanup_functions.md` 测试指南
-- 创建了 `serial_workflow_test.md` 串行流程测试指南
-- 创建了 `grayscale_workflow_test.md` 灰度工作流程测试指南
-- 创建了 `watershed_segmentation_test.md` 分水岭分割测试指南
-- 创建了 `corrected_watershed_test.md` 修正后分水岭算法测试指南
-- 创建了 `final_watershed_test.md` 最终修复的分水岭分割测试指南
-- 创建了 `serial_watershed_test.md` 串行流程分水岭分割测试指南
-- 创建了 `BUILD.md` 详细的跨平台构建指南
-- 创建了 `build.sh` 和 `build.bat` 跨平台构建脚本
-- 创建了 `test_build.sh` 构建验证脚本
-- 创建了 `.github/workflows/build.yml` GitHub Actions自动化测试
+build.yml` GitHub Actions自动化测试
 - 所有Clean-Up功能现在应该正常工作
 - 灰度转换现在正确保持单通道格式
 - 串行工作流程现在完全符合设计要求

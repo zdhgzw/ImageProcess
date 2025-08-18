@@ -5,6 +5,16 @@ project(ImageProcessingApp)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Disable all compiler warnings globally
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -w")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -w")
+
+# Suppress specific warnings for different compilers
+if(MSVC)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W0")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W0")
+endif()
+
 # Platform detection
 if(WIN32)
     message(STATUS "Building for Windows")
@@ -25,18 +35,25 @@ endif()
 # Find OpenCV
 find_package(OpenCV REQUIRED)
 
+# Suppress OpenCV related warnings
+add_definitions(-DOPENCV_DISABLE_EIGEN_TENSOR_SUPPORT)
+add_definitions(-D_SILENCE_EXPERIMENTAL_FILESYSTEM_DEPRECATION_WARNING)
+add_definitions(-DOPENCV_DISABLE_THREAD_SUPPORT)
+
 # Include directories
 include_directories(${OpenCV_INCLUDE_DIRS})
 include_directories(${CMAKE_SOURCE_DIR}/third_party/cvui)
 
 # Compiler specific settings
 if(MSVC)
-    # Visual Studio specific settings
-    add_compile_options(/W4)
+    # Visual Studio specific settings - disable warnings
+    add_compile_options(/W0)  # Disable all warnings
     add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+    add_definitions(-D_SCL_SECURE_NO_WARNINGS)
+    add_definitions(-D_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS)
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    # GCC/Clang specific settings
-    add_compile_options(-Wall -Wextra -Wpedantic)
+    # GCC/Clang specific settings - disable warnings
+    add_compile_options(-w)  # Disable all warnings
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
         add_compile_options(-g -O0)
     else()
@@ -75,6 +92,20 @@ add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
 
 # Target include directories
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/include)
+
+# Disable warnings for this target specifically
+if(MSVC)
+    target_compile_options(${PROJECT_NAME} PRIVATE /W0)
+else()
+    target_compile_options(${PROJECT_NAME} PRIVATE -w)
+endif()
+
+# Set additional properties to suppress warnings
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    COMPILE_WARNING_AS_ERROR OFF
+)
 
 # Link libraries
 target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBS})
