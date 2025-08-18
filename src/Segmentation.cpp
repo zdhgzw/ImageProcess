@@ -55,7 +55,7 @@ cv::Mat Segmentation::otsuThreshold(const cv::Mat& image) {
     cv::Mat result;
     cv::Mat grayImage;
     //otsu
-    cv::threshold(image, result, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+    cv::threshold(image, result, 0, 255, cv::THRESH_BINARY_INV | cv::THRESH_OTSU);
     
     std::cout << "DEBUG: otsuThreshold applied, result channels=" << result.channels() << std::endl;
     return result;
@@ -110,18 +110,7 @@ cv::Mat Segmentation::watershed(const cv::Mat& image, const cv::Mat& originalIma
         std::cout << "DEBUG: Creating visualization canvas: " << canvasWidth << "x" << canvasHeight << std::endl;
     }
 
-    // 添加步骤1到画布: 原始图像
-    if (showVisualization) {
-        cv::Mat step1Display;
-        if (originalImage.channels() == 3) {
-            step1Display = originalImage.clone();
-        } else {
-            cv::cvtColor(originalImage, step1Display, cv::COLOR_GRAY2BGR);
-        }
-        cv::resize(step1Display, step1Display, cv::Size(stepWidth-10, stepHeight-40));
-        step1Display.copyTo(canvas(cv::Rect(5, 25, stepWidth-10, stepHeight-40)));
-        cv::putText(canvas, "1. Input Binary Image", cv::Point(10, 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
-    }
+    // 跳过显示输入二值图像，直接从步骤2开始
 
     std::cout << "DEBUG: Step 1 - Using preprocessed binary image (serial workflow)" << std::endl;
 
@@ -136,8 +125,8 @@ cv::Mat Segmentation::watershed(const cv::Mat& image, const cv::Mat& originalIma
         cv::Mat step2Display;
         cv::cvtColor(sure_bg, step2Display, cv::COLOR_GRAY2BGR);
         cv::resize(step2Display, step2Display, cv::Size(stepWidth-10, stepHeight-40));
-        step2Display.copyTo(canvas(cv::Rect(stepWidth+5, 25, stepWidth-10, stepHeight-40)));
-        cv::putText(canvas, "2. Sure Background", cv::Point(stepWidth+10, 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
+        step2Display.copyTo(canvas(cv::Rect(5, 25, stepWidth-10, stepHeight-40)));
+        cv::putText(canvas, "1. Sure Background", cv::Point(10, 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
     }
 
     // 3. 距离变换确定前景区域
@@ -153,8 +142,8 @@ cv::Mat Segmentation::watershed(const cv::Mat& image, const cv::Mat& originalIma
         dist_transform.convertTo(distDisplay, CV_8U, 255.0);
         cv::cvtColor(distDisplay, step3Display, cv::COLOR_GRAY2BGR);
         cv::resize(step3Display, step3Display, cv::Size(stepWidth-10, stepHeight-40));
-        step3Display.copyTo(canvas(cv::Rect(stepWidth*2+5, 25, stepWidth-10, stepHeight-40)));
-        cv::putText(canvas, "3. Distance Transform", cv::Point(stepWidth*2+10, 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
+        step3Display.copyTo(canvas(cv::Rect(stepWidth+5, 25, stepWidth-10, stepHeight-40)));
+        cv::putText(canvas, "2. Distance Transform", cv::Point(stepWidth+10, 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
     }
 
     // 5. 基于相对阈值获取确定的前景区域
@@ -173,8 +162,8 @@ cv::Mat Segmentation::watershed(const cv::Mat& image, const cv::Mat& originalIma
         cv::Mat step4Display;
         cv::cvtColor(sure_fg, step4Display, cv::COLOR_GRAY2BGR);
         cv::resize(step4Display, step4Display, cv::Size(stepWidth-10, stepHeight-40));
-        step4Display.copyTo(canvas(cv::Rect(stepWidth*3+5, 25, stepWidth-10, stepHeight-40)));
-        cv::putText(canvas, "4. Sure Foreground", cv::Point(stepWidth*3+10, 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
+        step4Display.copyTo(canvas(cv::Rect(stepWidth*2+5, 25, stepWidth-10, stepHeight-40)));
+        cv::putText(canvas, "3. Sure Foreground", cv::Point(stepWidth*2+10, 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
     }
     
     // 6. 计算未知区域 = 背景 - 前景
@@ -188,7 +177,7 @@ cv::Mat Segmentation::watershed(const cv::Mat& image, const cv::Mat& originalIma
         cv::cvtColor(unknown, step5Display, cv::COLOR_GRAY2BGR);
         cv::resize(step5Display, step5Display, cv::Size(stepWidth-10, stepHeight-40));
         step5Display.copyTo(canvas(cv::Rect(5, stepHeight+25, stepWidth-10, stepHeight-40)));
-        cv::putText(canvas, "5. Unknown Region", cv::Point(10, stepHeight+20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
+        cv::putText(canvas, "4. Unknown Region", cv::Point(10, stepHeight+20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
     }
 
     // 7. 使用connectedComponents进行连通区域标记（标准方法）
@@ -222,55 +211,83 @@ cv::Mat Segmentation::watershed(const cv::Mat& image, const cv::Mat& originalIma
     cv::watershed(colorImage, markers);
     std::cout << "DEBUG: Step 10 - Watershed algorithm completed" << std::endl;
 
-    // 11. 生成结果图像，标记红色边界
-    cv::Mat result = colorImage.clone();
+    // 11. 生成结果图像，使用颜色填充分割区域
+    cv::Mat result = cv::Mat::zeros(colorImage.size(), CV_8UC3);
 
     // 统计边界像素数量和对象数量
     int boundaryCount = 0;
     std::set<int> uniqueLabels;
 
-    // 标记分水岭边界为红色
+    // 生成随机颜色表，为每个分割区域分配不同颜色
+    std::vector<cv::Vec3b> colors;
+    colors.push_back(cv::Vec3b(0, 0, 0)); // 背景色（黑色）
+    colors.push_back(cv::Vec3b(64, 64, 64)); // 背景色（深灰）
+    
+    // 为每个对象生成明亮的随机颜色
+    cv::RNG rng(12345);
+    for (int i = 2; i < 256; i++) {
+        // 生成明亮、饱和度高的颜色，便于区分
+        int b = rng.uniform(100, 255);
+        int g = rng.uniform(100, 255);  
+        int r = rng.uniform(100, 255);
+        colors.push_back(cv::Vec3b(b, g, r));
+    }
+
+    // 使用颜色填充每个分割区域
     for (int i = 0; i < markers.rows; i++) {
         for (int j = 0; j < markers.cols; j++) {
             int label = markers.at<int>(i, j);
             if (label == -1) {
+                // 分水岭边界用白色表示，清晰分隔各区域
                 boundaryCount++;
-                // 绘制红色边界（单像素，标准做法）
-                result.at<cv::Vec3b>(i, j) = cv::Vec3b(0, 0, 255);
-            } else if (label > 1) {
-                // 统计对象标签（排除背景标签1）
-                uniqueLabels.insert(label);
+                result.at<cv::Vec3b>(i, j) = cv::Vec3b(255, 255, 255);
+            } else if (label > 0 && label < colors.size()) {
+                // 用预定义颜色填充分割区域
+                result.at<cv::Vec3b>(i, j) = colors[label];
+                if (label > 1) {
+                    // 统计对象标签（排除背景标签1）
+                    uniqueLabels.insert(label);
+                }
             }
         }
     }
+    
+    std::cout << "DEBUG: Color segmentation applied - " << uniqueLabels.size() 
+              << " objects with different colors, " << boundaryCount << " boundary pixels" << std::endl;
 
     // 12. 计算最终统计信息
     int objectCount = uniqueLabels.size();
 
     // 13. 添加最终结果到画布并显示
     if (showVisualization) {
-        // 添加步骤6: 最终分割结果
-        cv::Mat step6Display = result.clone();
-        cv::resize(step6Display, step6Display, cv::Size(stepWidth-10, stepHeight-40));
-        step6Display.copyTo(canvas(cv::Rect(stepWidth+5, stepHeight+25, stepWidth-10, stepHeight-40)));
-        cv::putText(canvas, "6. Watershed Result", cv::Point(stepWidth+10, stepHeight+20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
+        // 添加步骤5: 最终分割结果
+        cv::Mat step5Display = result.clone();
+        cv::resize(step5Display, step5Display, cv::Size(stepWidth-10, stepHeight-40));
+        step5Display.copyTo(canvas(cv::Rect(stepWidth+5, stepHeight+25, stepWidth-10, stepHeight-40)));
+        cv::putText(canvas, "5. Watershed Result", cv::Point(stepWidth+10, stepHeight+20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
 
-        // 添加统计信息到画布
-        cv::Mat infoArea = canvas(cv::Rect(stepWidth*2+5, stepHeight+25, stepWidth-10, stepHeight-40));
+        // 添加步骤6: 原始彩色图像
+        cv::Mat step6Display = originalImage.clone();
+        cv::resize(step6Display, step6Display, cv::Size(stepWidth-10, stepHeight-40));
+        step6Display.copyTo(canvas(cv::Rect(stepWidth*2+5, stepHeight+25, stepWidth-10, stepHeight-40)));
+        cv::putText(canvas, "6. Original Image", cv::Point(stepWidth*2+10, stepHeight+20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
+
+        // 添加统计信息到画布（移动到第7位置）
+        cv::Mat infoArea = canvas(cv::Rect(stepWidth*3+5, stepHeight+25, stepWidth-10, stepHeight-40));
         infoArea.setTo(cv::Scalar(50, 50, 50)); // 深灰色背景
 
-        cv::putText(canvas, "7. Statistics", cv::Point(stepWidth*2+10, stepHeight+20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
+        cv::putText(canvas, "7. Statistics", cv::Point(stepWidth*3+10, stepHeight+20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
 
         int textY = stepHeight + 50;
-        cv::putText(canvas, "Statistics:", cv::Point(stepWidth*2+15, textY), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 1);
+        cv::putText(canvas, "Statistics:", cv::Point(stepWidth*3+15, textY), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 1);
         textY += 30;
-        cv::putText(canvas, ("Components: " + std::to_string(numLabels)).c_str(), cv::Point(stepWidth*2+15, textY), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
+        cv::putText(canvas, ("Components: " + std::to_string(numLabels)).c_str(), cv::Point(stepWidth*3+15, textY), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
         textY += 25;
-        cv::putText(canvas, ("Objects: " + std::to_string(objectCount)).c_str(), cv::Point(stepWidth*2+15, textY), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
+        cv::putText(canvas, ("Objects: " + std::to_string(objectCount)).c_str(), cv::Point(stepWidth*3+15, textY), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
         textY += 25;
-        cv::putText(canvas, ("Boundaries: " + std::to_string(boundaryCount)).c_str(), cv::Point(stepWidth*2+15, textY), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
+        cv::putText(canvas, ("Boundaries: " + std::to_string(boundaryCount)).c_str(), cv::Point(stepWidth*3+15, textY), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
         textY += 25;
-        cv::putText(canvas, ("Threshold: " + std::to_string(distanceThreshold).substr(0, 4)).c_str(), cv::Point(stepWidth*2+15, textY), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
+        cv::putText(canvas, ("Threshold: " + std::to_string(distanceThreshold).substr(0, 4)).c_str(), cv::Point(stepWidth*3+15, textY), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
 
         cv::imshow("Watershed Process Visualization", canvas);
         std::cout << "DEBUG: Visualization canvas displayed with final result" << std::endl;
@@ -312,7 +329,7 @@ cv::Mat Segmentation::applyFunction(const cv::Mat& image, SegmentationFunction f
             return localThreshold(image, params.size() > 0 ? (int)params[0] : 11, params.size() > 1 ? params[1] : 2.0);
         case SegmentationFunction::WATERSHED:
             // 分水岭算法需要原始图像参数，applyFunction无法提供
-            // 应该直接调用Segmentation::watershed()函数，而不是通过applyFunction
+            // 应该直接调用Segmentation::watershed函数，而不是通过applyFunction
             std::cout << "ERROR: Watershed algorithm should not be called through applyFunction" << std::endl;
             std::cout << "       Use Segmentation::watershed(processedImage, originalImage, threshold, showViz) directly" << std::endl;
             return image.clone();

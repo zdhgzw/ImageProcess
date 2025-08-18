@@ -758,7 +758,7 @@ void ImageProcessingApp::applySegmentationFunction(SegmentationFunction function
                 double distThreshold;
                 int minAreaParam;
                 UIComponents::getWatershedParameters(distThreshold, minAreaParam);
-                // 直接调用watershed函数，传入原始图像
+                // 直接调用watershed函数，传入原始图像，不显示可视化（结果将在主界面显示）
                 result = Segmentation::watershed(currentImage, processor.getOriginalImage(), distThreshold, false);
                 std::cout << "Applied watershed: distanceThreshold=" << distThreshold << std::endl;
                 break;
