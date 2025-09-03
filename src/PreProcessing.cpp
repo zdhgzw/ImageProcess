@@ -40,7 +40,15 @@ cv::Mat PreProcessing::flattenBackground(const cv::Mat& image, int kernelSize) {
 // NOISE-REDUCTION类别算法实现
 cv::Mat PreProcessing::medianFilter(const cv::Mat& image, int kernelSize) {
     cv::Mat result;
-    cv::medianBlur(image, result, kernelSize);
+    // 确保kernelSize为奇数且大于1
+    int validKernelSize = kernelSize;
+    if (validKernelSize % 2 == 0) {
+        validKernelSize += 1;  // 转换为奇数
+    }
+    if (validKernelSize < 3) {
+        validKernelSize = 3;   // 最小值为3
+    }
+    cv::medianBlur(image, result, validKernelSize);
     return result;
 }
 
@@ -72,7 +80,8 @@ cv::Mat PreProcessing::averageBlur(const cv::Mat& image, int kernelSize) {
 
 cv::Mat PreProcessing::sumFilter(const cv::Mat& image, int kernelSize) {
     cv::Mat result;
-    cv::Mat kernel = cv::Mat::ones(kernelSize, kernelSize, CV_32F);
+    // 创建归一化的求和滤波器，避免像素值溢出
+    cv::Mat kernel = cv::Mat::ones(kernelSize, kernelSize, CV_32F) / (float)(kernelSize * kernelSize);
     cv::filter2D(image, result, -1, kernel);
     return result;
 }

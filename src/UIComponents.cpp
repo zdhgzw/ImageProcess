@@ -3,7 +3,7 @@
 #include <iostream>
 
 // 全局分水岭参数（用于参数传递）
-static double g_watershedDistanceThreshold = 0.3;  // 距离变换阈值
+static double g_watershedDistanceThreshold = 0.35; // 距离变换阈值
 
 UIComponents::UIComponents() {
 }
@@ -189,6 +189,44 @@ bool UIComponents::renderFlattenBackgroundParameters(cv::Mat& frame, int startY,
     return needsUpdate;
 }
 
+bool UIComponents::renderMedianFilterParameters(cv::Mat& frame, int startY, int controlAreaX,
+                                               int& medianKernelSize, int& prevMedianKernelSize,
+                                               PreProcessingFunction currentFunction) {
+    int currentY = startY;
+    
+    cvui::text(frame, controlAreaX, currentY, "Kernel Size (odd numbers only):", 0.35);
+    currentY += 20;
+    
+    // 确保核大小为奇数
+    int tempKernel = medianKernelSize;
+    cvui::trackbar(frame, controlAreaX, currentY, 200, &tempKernel, 3, 21);
+    
+    // 强制为奇数
+    if (tempKernel % 2 == 0) {
+        tempKernel += 1;
+    }
+    medianKernelSize = tempKernel;
+    
+    cvui::text(frame, controlAreaX + 210, currentY + 8, ("Size: " + std::to_string(medianKernelSize)).c_str(), 0.3);
+    currentY += 40;
+    
+    cvui::text(frame, controlAreaX, currentY, "Current kernel size: " + std::to_string(medianKernelSize), 0.3);
+    cvui::text(frame, controlAreaX, currentY + 15, "Larger values = more noise reduction", 0.25);
+    
+    // 检测medianKernelSize变化并自动更新预览
+    bool needsUpdate = false;
+    if (medianKernelSize != prevMedianKernelSize) {
+        needsUpdate = true;
+        prevMedianKernelSize = medianKernelSize;
+    }
+    
+    if (cvui::button(frame, controlAreaX, currentY + 40, 120, 25, "Update Preview", 0.35)) {
+        needsUpdate = true;
+    }
+    
+    return needsUpdate;
+}
+
 PreProcessingFunction UIComponents::renderPreProcessingFunctionSelection(cv::Mat& frame, int controlAreaX, int controlAreaY) {
     int currentY = controlAreaY;
 
@@ -260,8 +298,10 @@ int UIComponents::renderPreProcessingParameters(cv::Mat& frame, int controlAreaX
                                               PreProcessingFunction currentFunction,
                                               double& brightness, double& contrast,
                                               int& histogramMethod, double& clipLimit, int& flattenKernelSize,
+                                              int& medianKernelSize,
                                               double& prevBrightness, double& prevContrast,
-                                              double& prevClipLimit, int& prevFlattenKernelSize) {
+                                              double& prevClipLimit, int& prevFlattenKernelSize,
+                                              int& prevMedianKernelSize) {
     int currentY = controlAreaY;
 
     // 显示当前选择的功能名称和返回按钮
@@ -295,6 +335,10 @@ int UIComponents::renderPreProcessingParameters(cv::Mat& frame, int controlAreaX
         case PreProcessingFunction::FLATTEN_BACKGROUND:
             needsUpdate = renderFlattenBackgroundParameters(frame, currentY, controlAreaX,
                                                            flattenKernelSize, prevFlattenKernelSize, currentFunction);
+            break;
+        case PreProcessingFunction::MEDIAN_FILTER:
+            needsUpdate = renderMedianFilterParameters(frame, currentY, controlAreaX,
+                                                     medianKernelSize, prevMedianKernelSize, currentFunction);
             break;
         default:
             cvui::text(frame, controlAreaX, currentY, "No parameters for this function.", 0.35);
@@ -362,9 +406,9 @@ int UIComponents::renderSegmentationParameters(cv::Mat& frame, int controlAreaX,
     static int prevBlockSize = blockSize;
     static double prevC = C;
     // 分水岭算法参数
-    static double markerThreshold = 0.5;  // 修正初始值
-    static int minArea = 100;
-    static double prevMarkerThreshold = markerThreshold;
+    static double distanceThreshold = 0.5;  // 距离变换阈值初始值
+    static int minArea = 10;
+    static double prevDistanceThreshold = distanceThreshold;
     static int prevMinArea = minArea;
     int currentY = controlAreaY;
 
@@ -507,9 +551,9 @@ int UIComponents::renderSegmentationParameters(cv::Mat& frame, int controlAreaX,
             currentY += 40;
 
             // 检测距离阈值变化
-            if (g_watershedDistanceThreshold != prevMarkerThreshold) {
+            if (g_watershedDistanceThreshold != prevDistanceThreshold) {
                 needsUpdate = true;
-                prevMarkerThreshold = g_watershedDistanceThreshold;
+                prevDistanceThreshold = g_watershedDistanceThreshold;
             }
 
             cvui::text(frame, controlAreaX, currentY, "Algorithm: Watershed segmentation", 0.3);
@@ -582,6 +626,30 @@ MorphologyFunction UIComponents::renderMorphologyFunctionSelection(cv::Mat& fram
     }
     currentY += 40;
 
+    // UNIFORM (统一操作)
+    cvui::text(frame, controlAreaX, currentY, "UNIFORM:", 0.35);
+    currentY += 25;
+
+    if (cvui::button(frame, controlAreaX, currentY, 100, 25, "Dilate Uniform", 0.3)) {
+        return MorphologyFunction::DILATE_UNIFORM;
+    }
+    if (cvui::button(frame, controlAreaX + 110, currentY, 100, 25, "Erode Uniform", 0.3)) {
+        return MorphologyFunction::ERODE_UNIFORM;
+    }
+    currentY += 40;
+
+    // RETAIN (保留操作)
+    cvui::text(frame, controlAreaX, currentY, "RETAIN:", 0.35);
+    currentY += 25;
+
+    if (cvui::button(frame, controlAreaX, currentY, 100, 25, "Dilate Retain", 0.3)) {
+        return MorphologyFunction::DILATE_RETAIN;
+    }
+    if (cvui::button(frame, controlAreaX + 110, currentY, 100, 25, "Erode Retain", 0.3)) {
+        return MorphologyFunction::ERODE_RETAIN;
+    }
+    currentY += 40;
+
     // EDGES (边界调节)
     cvui::text(frame, controlAreaX, currentY, "EDGES:", 0.35);
     currentY += 25;
@@ -596,12 +664,20 @@ MorphologyFunction UIComponents::renderMorphologyFunctionSelection(cv::Mat& fram
 int UIComponents::renderMorphologyParameters(cv::Mat& frame, int controlAreaX, int controlAreaY,
                                            MorphologyFunction currentFunction,
                                            int& morphKernelSize, int& morphKernelType,
-                                           double& edgeThreshold, int& separationMethod) {
+                                           double& edgeThreshold, int& separationMethod,
+                                           int& uniformPixelValue, int& retainMethod) {
+    // 添加静态变量来检测参数变化
+    static int prevMorphKernelSize = morphKernelSize;
+    static int prevMorphKernelType = morphKernelType;
+    static double prevEdgeThreshold = edgeThreshold;
+    static int prevSeparationMethod = separationMethod;
+    
     int currentY = controlAreaY;
 
     // 显示当前选择的功能名称和返回按钮
     const char* functionNames[] = {
-        "Dilate", "Erode", "Opening", "Closing", "Gradient", "Top Hat", "Black Hat", "Separate Features"
+        "Dilate", "Erode", "Opening", "Closing", "Gradient", "Top Hat", "Black Hat", 
+        "Dilate Uniform", "Erode Uniform", "Dilate Retain", "Erode Retain", "Separate Features"
     };
 
     cvui::text(frame, controlAreaX, currentY, functionNames[(int)currentFunction], 0.4);
@@ -619,6 +695,13 @@ int UIComponents::renderMorphologyParameters(cv::Mat& frame, int controlAreaX, i
     cvui::trackbar(frame, controlAreaX, currentY, 200, &morphKernelSize, 3, 21);
     // Ensure odd number
     if (morphKernelSize % 2 == 0) morphKernelSize++;
+    
+    // 检测kernelSize变化
+    if (morphKernelSize != prevMorphKernelSize) {
+        needsUpdate = true;
+        prevMorphKernelSize = morphKernelSize;
+    }
+    
     cvui::text(frame, controlAreaX + 210, currentY + 8, ("Size: " + std::to_string(morphKernelSize)).c_str(), 0.3);
     currentY += 40;
 
@@ -641,11 +724,72 @@ int UIComponents::renderMorphologyParameters(cv::Mat& frame, int controlAreaX, i
     cvui::text(frame, controlAreaX, currentY, ("Current: " + std::string(kernelTypes[morphKernelType]) + " kernel, size " + std::to_string(morphKernelSize)).c_str(), 0.3);
     currentY += 40;
 
+    // Additional parameters for Uniform operations
+    if (currentFunction == MorphologyFunction::DILATE_UNIFORM || currentFunction == MorphologyFunction::ERODE_UNIFORM) {
+        // 添加静态变量来检测uniform pixel value变化
+        static int prevUniformPixelValue = uniformPixelValue;
+        
+        cvui::text(frame, controlAreaX, currentY, "Pixel Value (Radius):", 0.35);
+        currentY += 20;
+        cvui::trackbar(frame, controlAreaX, currentY, 200, &uniformPixelValue, 1, 20);
+        cvui::text(frame, controlAreaX + 210, currentY + 8, ("Value: " + std::to_string(uniformPixelValue)).c_str(), 0.3);
+        currentY += 40;
+
+        // 检测uniformPixelValue变化
+        if (uniformPixelValue != prevUniformPixelValue) {
+            needsUpdate = true;
+            prevUniformPixelValue = uniformPixelValue;
+        }
+
+        cvui::text(frame, controlAreaX, currentY, ("Current: " + std::to_string(uniformPixelValue) + " pixel radius").c_str(), 0.3);
+        cvui::text(frame, controlAreaX, currentY + 15, "Equivalent kernel size: " + std::to_string(uniformPixelValue * 2 + 1), 0.25);
+        
+        currentY += 50;
+    }
+
+    // Additional parameters for Retain operations
+    if (currentFunction == MorphologyFunction::DILATE_RETAIN || currentFunction == MorphologyFunction::ERODE_RETAIN) {
+        cvui::text(frame, controlAreaX, currentY, "Retain Method:", 0.35);
+        currentY += 25;
+
+        const char* retainMethods[] = {"Keypoint Retain", "Skeleton Retain", "Size Constraint"};
+        for (int i = 0; i < 3; i++) {
+            if (cvui::button(frame, controlAreaX, currentY + i * 30, 140, 25, retainMethods[i], 0.3)) {
+                retainMethod = i;
+                needsUpdate = true;
+            }
+            if (retainMethod == i) {
+                cvui::text(frame, controlAreaX + 150, currentY + i * 30 + 8, "<- Selected", 0.25);
+            }
+        }
+        currentY += 100;
+
+        cvui::text(frame, controlAreaX, currentY, ("Method: " + std::string(retainMethods[retainMethod])).c_str(), 0.3);
+        
+        // 方法说明
+        if (retainMethod == 0) {
+            cvui::text(frame, controlAreaX, currentY + 15, "Preserves object centroids and key features", 0.25);
+        } else if (retainMethod == 1) {
+            cvui::text(frame, controlAreaX, currentY + 15, "Maintains object skeleton structure", 0.25);
+        } else if (retainMethod == 2) {
+            cvui::text(frame, controlAreaX, currentY + 15, "Controls object size expansion/shrinkage", 0.25);
+        }
+        
+        currentY += 50;
+    }
+
     // Additional parameters for Separate Features
     if (currentFunction == MorphologyFunction::SEPARATE_FEATURES) {
         cvui::text(frame, controlAreaX, currentY, "Edge Detection Threshold:", 0.35);
         currentY += 20;
         cvui::trackbar(frame, controlAreaX, currentY, 200, &edgeThreshold, 10.0, 300.0);
+        
+        // 检测edgeThreshold变化
+        if (edgeThreshold != prevEdgeThreshold) {
+            needsUpdate = true;
+            prevEdgeThreshold = edgeThreshold;
+        }
+        
         cvui::text(frame, controlAreaX + 210, currentY + 8, ("Threshold: " + std::to_string((int)edgeThreshold)).c_str(), 0.3);
         currentY += 40;
 
@@ -733,7 +877,7 @@ int UIComponents::renderCleanUpParameters(cv::Mat& frame, int controlAreaX, int 
 
                 // 检测最小孔洞大小变化
                 if (minHoleSize != prevMinHoleSize) {
-                    // needsUpdate = true;
+                    needsUpdate = true;
                     prevMinHoleSize = minHoleSize;
                 }
 

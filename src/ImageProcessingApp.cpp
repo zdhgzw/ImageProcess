@@ -40,6 +40,9 @@ ImageProcessingApp::ImageProcessingApp() : windowName("Image Processing Applicat
     flattenKernelSize = 15;
     prevFlattenKernelSize = flattenKernelSize - 2;
     
+    medianKernelSize = 5;
+    prevMedianKernelSize = medianKernelSize - 2;
+    
     // 分割参数
     thresholdValue = 127.0;
     thresholdType = 0;
@@ -55,11 +58,13 @@ ImageProcessingApp::ImageProcessingApp() : windowName("Image Processing Applicat
     morphThreshold = 127.0;
     edgeThreshold = 100.0;
     separationMethod = 0; // Canny
+    retainMethod = 0; // Keypoint Retain
+    uniformPixelValue = 3; // Default 3 pixels
 
     // 清理参数
     minHoleSize = 50;
     minFeatureSize = 10;
-    maxFeatureSize = 10000;
+    maxFeatureSize = 50000;
     rejectMethod = 0;
 
     // 测量参数
@@ -455,8 +460,8 @@ void ImageProcessingApp::renderPreProcessingModal() {
     } else {
         // 参数控制界面
         int result = UIComponents::renderPreProcessingParameters(frame, controlAreaX, controlAreaY, currentPreProcessingFunction,
-                                                               brightness, contrast, histogramMethod, clipLimit, flattenKernelSize,
-                                                               prevBrightness, prevContrast, prevClipLimit, prevFlattenKernelSize);
+                                                               brightness, contrast, histogramMethod, clipLimit, flattenKernelSize, medianKernelSize,
+                                                               prevBrightness, prevContrast, prevClipLimit, prevFlattenKernelSize, prevMedianKernelSize);
 
         if (result == 1) {
             // Back button clicked
@@ -598,6 +603,11 @@ void ImageProcessingApp::applyPreProcessingFunction(PreProcessingFunction functi
                 result = PreProcessing::applyFunction(currentImage, function, params);
                 std::cout << "Applied background flattening with kernel size=" << flattenKernelSize << std::endl;
                 break;
+            case PreProcessingFunction::MEDIAN_FILTER:
+                params = {(double)medianKernelSize};
+                result = PreProcessing::applyFunction(currentImage, function, params);
+                std::cout << "Applied median filter with kernel size=" << medianKernelSize << std::endl;
+                break;
             default:
                 // 对于其他功能，使用默认参数
                 result = PreProcessing::applyFunction(currentImage, function, {});
@@ -641,6 +651,10 @@ void ImageProcessingApp::updatePreProcessingPreview(PreProcessingFunction functi
                 break;
             case PreProcessingFunction::FLATTEN_BACKGROUND:
                 params = {(double)flattenKernelSize};
+                tempImage = PreProcessing::applyFunction(tempImage, function, params);
+                break;
+            case PreProcessingFunction::MEDIAN_FILTER:
+                params = {(double)medianKernelSize};
                 tempImage = PreProcessing::applyFunction(tempImage, function, params);
                 break;
             default:
@@ -844,13 +858,19 @@ void ImageProcessingApp::applyMorphologyFunction(MorphologyFunction function) {
         cv::Mat result;
         cv::Mat currentImage = processor.getCurrentImage();
 
-        std::vector<double> params = {(double)morphKernelSize, (double)morphKernelType, edgeThreshold, (double)separationMethod};
+        std::vector<double> params = {(double)morphKernelSize, (double)morphKernelType, edgeThreshold, (double)separationMethod, (double)retainMethod, (double)uniformPixelValue};
         result = Morphology::applyFunction(currentImage, function, params);
 
         std::cout << "Applied morphology function: " << (int)function
                   << ", kernelSize=" << morphKernelSize << ", kernelType=" << morphKernelType;
         if (function == MorphologyFunction::SEPARATE_FEATURES) {
             std::cout << ", edgeThreshold=" << edgeThreshold << ", separationMethod=" << separationMethod;
+        }
+        if (function == MorphologyFunction::DILATE_RETAIN || function == MorphologyFunction::ERODE_RETAIN) {
+            std::cout << ", retainMethod=" << retainMethod;
+        }
+        if (function == MorphologyFunction::DILATE_UNIFORM || function == MorphologyFunction::ERODE_UNIFORM) {
+            std::cout << ", pixelValue=" << uniformPixelValue;
         }
         std::cout << std::endl;
 
@@ -871,7 +891,7 @@ void ImageProcessingApp::updateMorphologyPreview(MorphologyFunction function) {
     cv::Mat tempImage = processor.getCurrentImage().clone();
 
     try {
-        std::vector<double> params = {(double)morphKernelSize, (double)morphKernelType, edgeThreshold, (double)separationMethod};
+        std::vector<double> params = {(double)morphKernelSize, (double)morphKernelType, edgeThreshold, (double)separationMethod, (double)retainMethod, (double)uniformPixelValue};
         tempImage = Morphology::applyFunction(tempImage, function, params);
 
         if (!tempImage.empty()) {
@@ -1325,13 +1345,16 @@ void ImageProcessingApp::renderMorphologyModal() {
             morphKernelType = 1; // ELLIPSE
             edgeThreshold = 100.0;
             separationMethod = 0; // Canny
+            retainMethod = 0; // Keypoint Retain
+            uniformPixelValue = 3; // Default 3 pixels
 
             updateMorphologyPreview(currentMorphologyFunction);
         }
     } else {
         // 参数控制界面
         int result = UIComponents::renderMorphologyParameters(frame, controlAreaX, controlAreaY, currentMorphologyFunction,
-                                                            morphKernelSize, morphKernelType, edgeThreshold, separationMethod);
+                                                            morphKernelSize, morphKernelType, edgeThreshold, separationMethod,
+                                                            uniformPixelValue, retainMethod);
 
         if (result == 1) {
             // Back button clicked
@@ -1379,7 +1402,7 @@ void ImageProcessingApp::renderCleanUpModal() {
                     break;
                 case CleanUpFunction::REJECT_FEATURES:
                     minFeatureSize = 10;
-                    maxFeatureSize = 1000;
+                    maxFeatureSize = 50000;
                     rejectMethod = 0;
                     break;
                 default:

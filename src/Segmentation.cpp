@@ -55,7 +55,7 @@ cv::Mat Segmentation::otsuThreshold(const cv::Mat& image) {
     cv::Mat result;
     cv::Mat grayImage;
     //otsu
-    cv::threshold(image, result, 0, 255, cv::THRESH_BINARY_INV | cv::THRESH_OTSU);
+    cv::threshold(image, result, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
     
     std::cout << "DEBUG: otsuThreshold applied, result channels=" << result.channels() << std::endl;
     return result;
@@ -134,7 +134,7 @@ cv::Mat Segmentation::watershed(const cv::Mat& image, const cv::Mat& originalIma
     cv::distanceTransform(binary, dist_transform, cv::DIST_L2, 5);
     cv::normalize(dist_transform, dist_transform, 0, 1.0, cv::NORM_MINMAX);
     std::cout << "DEBUG: Step 3 - Distance transform completed" << std::endl;
-    
+
     // 添加步骤3到画布: 距离变换
     if (showVisualization) {
         cv::Mat step3Display;
@@ -165,7 +165,7 @@ cv::Mat Segmentation::watershed(const cv::Mat& image, const cv::Mat& originalIma
         step4Display.copyTo(canvas(cv::Rect(stepWidth*2+5, 25, stepWidth-10, stepHeight-40)));
         cv::putText(canvas, "3. Sure Foreground", cv::Point(stepWidth*2+10, 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
     }
-    
+
     // 6. 计算未知区域 = 背景 - 前景
     cv::Mat unknown;
     cv::subtract(sure_bg, sure_fg, unknown);
@@ -179,12 +179,12 @@ cv::Mat Segmentation::watershed(const cv::Mat& image, const cv::Mat& originalIma
         step5Display.copyTo(canvas(cv::Rect(5, stepHeight+25, stepWidth-10, stepHeight-40)));
         cv::putText(canvas, "4. Unknown Region", cv::Point(10, stepHeight+20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
     }
-
+    
     // 7. 使用connectedComponents进行连通区域标记（标准方法）
     cv::Mat markers;
     int numLabels = cv::connectedComponents(sure_fg, markers);
     std::cout << "DEBUG: Step 7 - Connected components found: " << numLabels << " labels" << std::endl;
-
+    
     // 8. 标准分水岭标记处理
     // 所有标记加1，确保背景从1开始（标准做法）
     markers = markers + 1;
@@ -251,13 +251,8 @@ cv::Mat Segmentation::watershed(const cv::Mat& image, const cv::Mat& originalIma
             }
         }
     }
-    
-    std::cout << "DEBUG: Color segmentation applied - " << uniqueLabels.size() 
-              << " objects with different colors, " << boundaryCount << " boundary pixels" << std::endl;
-
-    // 12. 计算最终统计信息
     int objectCount = uniqueLabels.size();
-
+    
     // 13. 添加最终结果到画布并显示
     if (showVisualization) {
         // 添加步骤5: 最终分割结果
@@ -265,7 +260,7 @@ cv::Mat Segmentation::watershed(const cv::Mat& image, const cv::Mat& originalIma
         cv::resize(step5Display, step5Display, cv::Size(stepWidth-10, stepHeight-40));
         step5Display.copyTo(canvas(cv::Rect(stepWidth+5, stepHeight+25, stepWidth-10, stepHeight-40)));
         cv::putText(canvas, "5. Watershed Result", cv::Point(stepWidth+10, stepHeight+20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
-
+        
         // 添加步骤6: 原始彩色图像
         cv::Mat step6Display = originalImage.clone();
         cv::resize(step6Display, step6Display, cv::Size(stepWidth-10, stepHeight-40));
@@ -288,11 +283,11 @@ cv::Mat Segmentation::watershed(const cv::Mat& image, const cv::Mat& originalIma
         cv::putText(canvas, ("Boundaries: " + std::to_string(boundaryCount)).c_str(), cv::Point(stepWidth*3+15, textY), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
         textY += 25;
         cv::putText(canvas, ("Threshold: " + std::to_string(distanceThreshold).substr(0, 4)).c_str(), cv::Point(stepWidth*3+15, textY), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
-
+        
         cv::imshow("Watershed Process Visualization", canvas);
         std::cout << "DEBUG: Visualization canvas displayed with final result" << std::endl;
     }
-
+    
     // 14. 输出最终统计信息
     std::cout << "INFO: Watershed segmentation completed:" << std::endl;
     std::cout << "  - Input processed: " << (image.channels() == 1 ? "grayscale" : "color") << std::endl;

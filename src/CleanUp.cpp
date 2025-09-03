@@ -162,61 +162,55 @@ cv::Mat CleanUp::fillHolesByContours(const cv::Mat& image, int minSize) {
 cv::Mat CleanUp::rejectFeaturesBySize(const cv::Mat& image, int minSize, int maxSize) {
     CV_Assert(image.type() == CV_8UC1);
     
-    // 首先确定图像的背景颜色（通过计算平均亮度）
-    cv::Scalar meanVal = cv::mean(image);
-    bool isDarkBackground = (meanVal[0] < 128);
-    std::cout << "DEBUG: Image mean brightness: " << meanVal[0] << ", isDarkBackground: " << isDarkBackground << std::endl;
+    std::cout << "DEBUG: rejectFeaturesBySize - Size range: " << minSize << " - " << maxSize << std::endl;
     
-    // 创建一个用于处理的副本
-    cv::Mat binaryImage;
+    // 简化方法：假设输入是标准二值图像（背景=0，前景=255）
+    // 这样避免复杂的背景检测和图像反转
+    cv::Mat workingImage = image.clone();
     
-    // 根据背景颜色，可能需要反转图像以确保背景为黑色（这样对象就是白色区域）
-    if (!isDarkBackground) {
-        // 如果背景是亮色的，反转图像使背景变为黑色
-        cv::bitwise_not(image, binaryImage);
-        std::cout << "DEBUG: Image inverted for processing (bright background -> dark background)" << std::endl;
-    } else {
-        binaryImage = image.clone();
-    }
-    
-    // 创建结果图像（与原始背景颜色相同）
-    cv::Mat result;
-    if (!isDarkBackground) {
-        // 如果原始背景是亮色的，结果也应该是亮色背景
-        result = cv::Mat(image.size(), image.type(), cv::Scalar(255));
-    } else {
-        // 如果原始背景是暗色的，结果也应该是暗色背景
-        result = cv::Mat(image.size(), image.type(), cv::Scalar(0));
-    }
-
-    // 查找轮廓（在黑色背景上的白色对象）
+    // 查找轮廓（包括内部孔洞，保持原有结构）
     std::vector<std::vector<cv::Point>> contours;
-    cv::findContours(binaryImage, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+    std::vector<cv::Vec4i> hierarchy;
+    cv::findContours(workingImage, contours, hierarchy, cv::RETR_CCOMP, cv::CHAIN_APPROX_SIMPLE);
 
-    std::cout << "DEBUG: rejectFeaturesBySize - found " << contours.size() << " features" << std::endl;
-    std::cout << "DEBUG: Size range: " << minSize << " - " << maxSize << std::endl;
+    std::cout << "DEBUG: rejectFeaturesBySize - found " << contours.size() << " contours (including holes)" << std::endl;
 
+    // 创建结果图像（黑色背景）
+    cv::Mat result = cv::Mat::zeros(image.size(), image.type());
+    
     int acceptedCount = 0;
-    // 保留符合大小范围的轮廓
+    int rejectedCount = 0;
+    
+    // 处理外部轮廓（hierarchy[i][3] == -1 表示外部轮廓）
     for (size_t i = 0; i < contours.size(); i++) {
-        double area = cv::contourArea(contours[i]);
-        if (area >= minSize && area <= maxSize) {
-            // 根据原始背景颜色决定填充颜色
-            cv::Scalar fillColor = isDarkBackground ? cv::Scalar(255) : cv::Scalar(0);
-            cv::drawContours(result, contours, (int)i, fillColor, -1);
-            acceptedCount++;
-            std::cout << "DEBUG: Accepted feature " << i << " with area=" << area << std::endl;
-        } else {
-            std::cout << "DEBUG: Rejected feature " << i << " with area=" << area << std::endl;
+        // 只处理外部轮廓
+        if (hierarchy[i][3] == -1) {
+            double area = cv::contourArea(contours[i]);
+            
+            if (area >= minSize && area <= maxSize) {
+                // 接受这个特征：先绘制外部轮廓
+                cv::drawContours(result, contours, (int)i, cv::Scalar(255), cv::FILLED);
+                
+                // 然后绘制所有内部孔洞（挖空，恢复孔洞）
+                int holeIndex = hierarchy[i][2]; // 第一个孔洞的索引
+                while (holeIndex != -1) {
+                    cv::drawContours(result, contours, holeIndex, cv::Scalar(0), cv::FILLED);
+                    holeIndex = hierarchy[holeIndex][0]; // 下一个孔洞
+                }
+                
+                acceptedCount++;
+                std::cout << "DEBUG: Accepted feature " << i << " with area=" << area << " pixels" << std::endl;
+            } else {
+                rejectedCount++;
+                std::cout << "DEBUG: Rejected feature " << i << " with area=" << area << " pixels (outside range " 
+                          << minSize << "-" << maxSize << ")" << std::endl;
+            }
         }
     }
-    
-    // 如果需要，反转结果以匹配原始图像的背景
-    if (!isDarkBackground) {
-        cv::bitwise_not(result, result);
-    }
 
-    std::cout << "DEBUG: Accepted " << acceptedCount << " features out of " << contours.size() << std::endl;
+    std::cout << "DEBUG: Summary - Accepted: " << acceptedCount << ", Rejected: " << rejectedCount 
+              << ", Total: " << (acceptedCount + rejectedCount) << " features" << std::endl;
+    
     return result;
 }
 

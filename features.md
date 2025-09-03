@@ -54,8 +54,6 @@ Measurements (测量分析) - 基于1通道二值图像
 - **Gaussian Blur (高斯模糊)**: 通过设置每个像素等于其指定高斯邻域的加权平均像素值来模糊当前图像
 - **Average Blur (平均模糊)**: 通过将每个像素设置为其指定邻域的平均像素值来模糊当前图像
 - **Sum Filter (累加滤波器)**: 通过将每个像素设置为其指定邻域的像素值总和来模糊当前图像
-- **Grayscale Dilate (灰度扩张)**: 将当前像素设置为指定邻域中的最大像素值
-- **Grayscale Erode (灰度收缩)**: 将当前像素设置为指定邻域中的最小像素值
 
 ### 3.4 EDGES (突出边界)
 
@@ -114,12 +112,12 @@ Measurements (测量分析) - 基于1通道二值图像
 ### 5.1 Dilate and Erode (扩大和缩小)
 
 #### Dilation (扩大)
-- **Dilate Uniform**: 特征区域以指定的像素值整体全部扩大
+- **Dilate Uniform**: 特征区域以指定的像素值整体全部扩大，支持1-20像素值范围的精确控制
 - **Dilate Smart**: 对大于或等于指定阈值的某些像素点，进行选择性扩大
 - **Dilate Retain**: 特征区域以指定像素值整体扩大的同时，会避免相邻的特征区域合并到一起
 
 #### Erode (缩小)
-- **Erode Uniform**: 特征区域以指定的像素值整体全部缩小
+- **Erode Uniform**: 特征区域以指定的像素值整体全部缩小，支持1-20像素值范围的精确控制
 - **Erode Smart**: 对大于或等于指定阈值的某些像素点，进行选择性缩小或移除
 - **Erode Retain**: 特征区域以指定像素值整体缩小的同时，会避免一个特征区域被分割成多个
 
@@ -268,99 +266,3 @@ Intensity Mean, Intensity StdDev, Nearest Distance 等测量值含义可参见�
 
 ---
 
-## 问题修复记录
-
-### 已修复问题
-1. **PreProcessing模块参数重置问题** - 修复了功能切换时参数不重置的问题
-2. **UI组件变量作用域问题** - 修复了switch语句中变量声明的编译错误
-3. **模块化架构完善** - 所有新模块都遵循统一的设计模式
-4. **灰度转换通道问题** (2025-01-15) - 修复了convertToGrayscale后图像仍为3通道的问题
-   - 问题: `cv::cvtColor(grayImage, currentImage, cv::COLOR_GRAY2BGR)` 将灰度图像转回3通道
-   - 修复: 保持单通道灰度图像，在显示时自动转换为3通道
-5. **Clean-Up功能不可用问题** (2025-01-15) - 修复了Fill All Holes和Reject Features功能
-   - 问题: 二值化处理不够有效，孔洞检测算法不准确
-   - 修复:
-     - 使用Otsu自动阈值替代固定阈值127
-     - 重新设计孔洞检测算法，使用flood fill方法
-     - 改进特征检测的形状分析
-     - 添加详细的调试输出用于问题诊断
-     - 修复显示系统以正确处理单通道图像
-6. **OpenCV copyTo错误和串行流程问题** (2025-01-15) - 修复通道不匹配和违背串行流程的问题
-   - 问题1: `copyTo` 错误 - Segmentation模块强制转换通道导致不匹配
-   - 问题2: 违背串行流程 - 各模块独立进行预处理操作
-   - 修复:
-     - 移除所有模块中的强制通道转换，保持输入输出一致性
-     - 移除CleanUp和Measurements模块中的内部阈值化操作
-     - 确保每个模块专注于自己的核心功能
-     - 实现真正的串行处理流程: Load → Grayscale → Pre-Processing → Segmentation → Clean-Up → Morphology → Measurements
-     - 添加详细的通道调试信息
-7. **cvui::image copyTo错误的最终修复** (2025-01-15) - 彻底解决灰度工作流程中的显示问题
-   - 问题根源: `cvui::image()`函数在处理单通道图像时出现通道不匹配的copyTo错误
-   - 具体位置: UIComponents::renderPreviewArea 和 ImageProcessingApp::renderImageDisplay
-   - 修复方案:
-     - 在所有cvui::image调用前确保图像是3通道的
-     - UIComponents::renderPreviewArea: 单通道图像自动转换为3通道显示
-     - ImageProcessingApp::renderImageDisplay: 主显示区域的单通道图像自动转换
-     - ImageProcessor::applyPreProcessedImage: 简化逻辑，直接接受通道变化
-     - 颜色功能限制: Color Select/Cluster/Deconvolution在灰度图上显示警告并跳过
-   - 实现需求: Load Image(3通道) → Convert to Grayscale(1通道) → 所有后续操作都在1通道上 → Reset恢复3通道
-8. **分水岭分割算法实现错误** (2025-01-15) - 彻底重写分水岭算法，修复多个关键错误
-   - 问题分析:
-     - 二值化方向错误: 使用THRESH_BINARY而非THRESH_BINARY_INV
-     - 标记生成方法错误: 使用findContours而非connectedComponents
-     - 未知区域处理错误: 没有正确设置为0
-     - 距离变换未归一化: 导致阈值参数无意义
-     - 缺少标准的markers+1操作
-   - 修复方案:
-     - 使用标准二值化: THRESH_BINARY_INV | THRESH_OTSU (前景为白色)
-     - 使用connectedComponents进行标记生成 (标准方法)
-     - 正确处理未知区域: markers.setTo(0, unknown)
-     - 距离变换归一化: normalize(0, 1.0, NORM_MINMAX)
-     - 添加标准markers+1操作确保背景从1开始
-     - 新增6步骤可视化画布 (1200x800) 显示完整处理过程
-     - 完全符合OpenCV官方分水岭算法标准实现
-
-9. **分水岭算法参数和可视化优化** (2025-01-15) - 解决参数使用和可视化时机问题
-   - 问题分析:
-     - 未使用的minArea参数仍在函数签名中
-     - 可视化画布在Apply时显示，应该在Update Preview时显示
-     - 画布中缺少最终分割结果显示
-   - 修复方案:
-     - 移除minArea参数，改为showVisualization控制参数
-     - 修改可视化时机: Preview时显示(showVisualization=true)，Apply时不显示(showVisualization=false)
-     - 扩展画布为2x4网格(1600x800)，新增第7步显示最终分割结果
-     - 新增第8步显示统计信息(连通组件数、对象数、边界像素数、阈值)
-     - 优化UI参数显示，移除minArea相关控件
-
-10. **分水岭算法串行流程适配** (2025-01-15) - 修复违背串行流程设计的问题
-   - 问题分析:
-     - 违背串行流程: 分水岭算法重新进行灰度转换和二值化，应该直接使用预处理后的二值图像
-     - 文字位置问题: cv::putText在图像下方，可能被遮挡
-     - colorImage来源错误: 使用转换后的图像而非原始图像执行分水岭算法
-   - 修复方案:
-     - 串行流程适配: 输入验证单通道二值图像，跳过重复的预处理步骤，从形态学开运算开始
-     - 文字位置调整: 所有cv::putText从图像下方(stepHeight-10)移到上方(Y=20)
-     - 原始图像使用: 添加getOriginalImage()方法，分水岭算法使用原始彩色图像
-     - 函数签名修改: watershed(image, originalImage, distanceThreshold, showVisualization)
-     - 直接调用优化: 在ImageProcessingApp中直接调用watershed而非通过applyFunction
-     - 可视化更新: 步骤1显示原始图像，步骤2显示输入的预处理二值图像
-
-11. **跨平台构建支持** (2025-01-15) - 添加Windows和Linux跨平台构建支持
-   - 问题分析: 当前代码只支持Windows系统构建，需要支持Linux和macOS
-   - 实现方案:
-     - 修改CMakeLists.txt支持跨平台编译器和库检测
-     - 添加平台特定的库链接 (Windows: comdlg32, Linux: X11/GTK3, macOS: Cocoa)
-     - 创建跨平台构建脚本 (build.sh for Unix, build.bat for Windows)
-     - 添加自动OpenCV检测 (pkg-config for Linux, Homebrew for macOS, 默认路径 for Windows)
-     - 创建GitHub Actions工作流进行自动化跨平台测试
-     - 添加安装规则和桌面入口文件 (Linux)
-     - 创建详细的跨平台构建文档 (BUILD.md)
-     - 添加构建测试脚本 (test_build.sh)
-
-build.yml` GitHub Actions自动化测试
-- 所有Clean-Up功能现在应该正常工作
-- 灰度转换现在正确保持单通道格式
-- 串行工作流程现在完全符合设计要求
-- copyTo错误已彻底解决，支持完整的灰度工作流程
-- 分水岭分割算法现在完全符合OpenCV标准实现和软件串行流程设计，包含完整的8步骤可视化，正确的使用时机和参数控制
-- 项目现在支持Windows、Linux和macOS跨平台构建，包含自动化测试和详细的构建文档

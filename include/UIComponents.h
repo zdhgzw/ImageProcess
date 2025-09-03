@@ -97,6 +97,20 @@ public:
     static bool renderFlattenBackgroundParameters(cv::Mat& frame, int startY, int controlAreaX,
                                                  int& flattenKernelSize, int& prevFlattenKernelSize,
                                                  PreProcessingFunction currentFunction);
+    
+    /**
+     * @brief 渲染中值滤波参数界面
+     * @param frame 主窗口frame
+     * @param startY 起始Y坐标
+     * @param controlAreaX 控制区域X坐标
+     * @param medianKernelSize 中值滤波核大小
+     * @param prevMedianKernelSize 前一个核大小值
+     * @param currentFunction 当前功能
+     * @return 是否需要更新预览
+     */
+    static bool renderMedianFilterParameters(cv::Mat& frame, int startY, int controlAreaX,
+                                           int& medianKernelSize, int& prevMedianKernelSize,
+                                           PreProcessingFunction currentFunction);
 
     /**
      * @brief 渲染预处理功能选择界面
@@ -128,8 +142,10 @@ public:
                                            PreProcessingFunction currentFunction,
                                            double& brightness, double& contrast,
                                            int& histogramMethod, double& clipLimit, int& flattenKernelSize,
+                                           int& medianKernelSize,
                                            double& prevBrightness, double& prevContrast,
-                                           double& prevClipLimit, int& prevFlattenKernelSize);
+                                           double& prevClipLimit, int& prevFlattenKernelSize,
+                                           int& prevMedianKernelSize);
 
     // Segmentation UI methods
     static SegmentationFunction renderSegmentationFunctionSelection(cv::Mat& frame, int controlAreaX, int controlAreaY);
@@ -151,7 +167,8 @@ public:
     static int renderMorphologyParameters(cv::Mat& frame, int controlAreaX, int controlAreaY,
                                         MorphologyFunction currentFunction,
                                         int& morphKernelSize, int& morphKernelType,
-                                        double& edgeThreshold, int& separationMethod);
+                                        double& edgeThreshold, int& separationMethod,
+                                        int& uniformPixelValue, int& retainMethod);
 
     // CleanUp UI methods
     static CleanUpFunction renderCleanUpFunctionSelection(cv::Mat& frame, int controlAreaX, int controlAreaY);

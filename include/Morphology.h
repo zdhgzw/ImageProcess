@@ -15,8 +15,14 @@ enum class MorphologyFunction {
     GRADIENT = 4,
     TOP_HAT = 5,
     BLACK_HAT = 6,
+    // UNIFORM (统一操作)
+    DILATE_UNIFORM = 7,
+    ERODE_UNIFORM = 8,
+    // RETAIN (保留操作)
+    DILATE_RETAIN = 9,
+    ERODE_RETAIN = 10,
     // EDGES (边界调节)
-    SEPARATE_FEATURES = 7
+    SEPARATE_FEATURES = 11
 };
 
 /**
@@ -38,11 +44,19 @@ public:
     // 形态学操作算法
     static cv::Mat dilate(const cv::Mat& image, int kernelSize, int kernelType);
     static cv::Mat erode(const cv::Mat& image, int kernelSize, int kernelType);
+    
+    // Uniform操作算法（像素值精确控制）
+    static cv::Mat dilateUniform(const cv::Mat& image, int pixelValue);
+    static cv::Mat erodeUniform(const cv::Mat& image, int pixelValue);
     static cv::Mat opening(const cv::Mat& image, int kernelSize, int kernelType);
     static cv::Mat closing(const cv::Mat& image, int kernelSize, int kernelType);
     static cv::Mat gradient(const cv::Mat& image, int kernelSize, int kernelType);
     static cv::Mat topHat(const cv::Mat& image, int kernelSize, int kernelType);
     static cv::Mat blackHat(const cv::Mat& image, int kernelSize, int kernelType);
+    
+    // Retain操作算法
+    static cv::Mat dilateRetain(const cv::Mat& image, int kernelSize, int kernelType, int retainMethod);
+    static cv::Mat erodeRetain(const cv::Mat& image, int kernelSize, int kernelType, int retainMethod);
 
     /**
      * @brief 应用形态学功能

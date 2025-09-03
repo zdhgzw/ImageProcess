@@ -113,6 +113,9 @@ private:
     int histogramMethod;          // 直方图均衡化方法 (0=global, 1=adaptive)
     double clipLimit;             // CLAHE剪切限制 (1.0 to 40.0)
     int flattenKernelSize;        // 背景平坦化核大小 (5 to 51, odd only)
+    
+    // NOISE-REDUCTION类别特定参数
+    int medianKernelSize;         // 中值滤波核大小 (3 to 21, odd only)
 
     // 阈值标记参数
     double thresholdValue;        // 基本阈值 (0-255)
@@ -128,6 +131,8 @@ private:
     int morphKernelType;          // 核类型 (0=RECT, 1=ELLIPSE, 2=CROSS)
     double edgeThreshold;         // 边缘检测阈值 (10-300)
     int separationMethod;         // 分离方法 (0=Canny, 1=Sobel, 2=Laplacian)
+    int retainMethod;             // Retain方法 (0=Keypoint, 1=Skeleton, 2=Size Constraint)
+    int uniformPixelValue;        // Uniform操作像素值 (1-20)
 
     // 清理参数
     int minHoleSize;              // 最小孔洞大小 (1-500)
@@ -145,6 +150,7 @@ private:
     double prevContrast;
     double prevClipLimit;
     int prevFlattenKernelSize;
+    int prevMedianKernelSize;
     
 public:
     ImageProcessingApp();
