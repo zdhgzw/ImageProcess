@@ -1,0 +1,19 @@
+# 修改前 (Before)
+# scipy==1.2.1
+# numpy==1.17.0
+# matplotlib==3.1.2
+# ... (and so on for others)
+
+# 修改后 (After) - 建议这样修改
+torch==2.8.0
+torchvision==0.19.0
+torchaudio==2.8.0
+tensorboard
+scipy
+numpy
+matplotlib
+opencv-python
+tqdm
+Pillow
+h5py
+labelme
